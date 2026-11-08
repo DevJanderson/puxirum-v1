@@ -85,7 +85,11 @@ class ReadTest(unittest.TestCase):
         self.bad("intake", "DECISION: ACCEPT\nRISK: huge\nSURFACES: ui\nRESCOPED: no\n\n" + SUMMARY, "RISK")
         self.bad("intake", "DECISION: ACCEPT\nRISK: low\nSURFACES: UI\nRESCOPED: no\n\n" + SUMMARY, "SURFACES")
         self.bad("intake", "DECISION: ACCEPT\nRISK: low\nSURFACES: ui, ui\nRESCOPED: no\n\n" + SUMMARY, "SURFACES")
-        self.bad("intake", "DECISION: ACCEPT\nRISK: low\nSURFACES: ui\nRESCOPED: no\nX: 1\n\n" + SUMMARY, "unexpected header X")
+        self.bad(
+            "intake",
+            "DECISION: ACCEPT\nRISK: low\nSURFACES: ui\nRESCOPED: no\nX: 1\n\n" + SUMMARY,
+            "unexpected header X",
+        )
 
     def test_intake_needs_info_and_reject(self):
         self.ok("intake", "DECISION: NEEDS-INFO\n\n" + SUMMARY + "\n## Questions\n1. Which list?\n")

@@ -111,21 +111,36 @@ def run(
         code, seconds, timed_out = _run_checks(checks, worktree, log_path, env, timeout_s or cfg.gate_timeout_s)
         left_dirty = dirty_paths(worktree)
         ok = code == 0 and not timed_out and not protected
-        result = GateResult("PASS" if ok else "FAIL", commit, code, seconds, timed_out=timed_out,
-                            protected=protected, left_dirty=left_dirty)
+        result = GateResult(
+            "PASS" if ok else "FAIL",
+            commit,
+            code,
+            seconds,
+            timed_out=timed_out,
+            protected=protected,
+            left_dirty=left_dirty,
+        )
 
     _write_report(out_dir / f"{name}.md", log_path, result, merge, cfg)
     return result
 
 
-def _run_checks(checks: Path, worktree: Path, log_path: Path, env: dict[str, str] | None,
-                timeout_s: float) -> tuple[int | None, float, bool]:
+def _run_checks(
+    checks: Path, worktree: Path, log_path: Path, env: dict[str, str] | None, timeout_s: float
+) -> tuple[int | None, float, bool]:
     """Run the checks script in its own process group, killing the whole group on timeout."""
     start = time.monotonic()
     full_env = {**os.environ, **(env or {})}
     with open(log_path, "w", encoding="utf-8", errors="replace") as log:
-        proc = subprocess.Popen(["bash", str(checks)], cwd=worktree, env=full_env, stdin=subprocess.DEVNULL,
-                                stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        proc = subprocess.Popen(
+            ["bash", str(checks)],
+            cwd=worktree,
+            env=full_env,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
         try:
             code: int | None = proc.wait(timeout=timeout_s)
             timed_out = False
@@ -180,8 +195,12 @@ def _write_report(path: Path, log_path: Path, r: GateResult, merge: bool, cfg: C
     if r.dirty:
         parts.append("## Uncommitted changes\n" + "\n".join(f"- {p}" for p in r.dirty) + "\n")
     if r.left_dirty:
-        parts.append("## Notes\nThe checks left these paths changed in the worktree:\n"
-                     + "\n".join(f"- {p}" for p in r.left_dirty) + "\n")
-    parts.append(f"## Checks\n{checks_line}. Last {min(len(lines), TAIL_LINES)} lines of {log_path.name}:\n\n"
-                 f"```\n{tail}\n```\n")
+        parts.append(
+            "## Notes\nThe checks left these paths changed in the worktree:\n"
+            + "\n".join(f"- {p}" for p in r.left_dirty)
+            + "\n"
+        )
+    parts.append(
+        f"## Checks\n{checks_line}. Last {min(len(lines), TAIL_LINES)} lines of {log_path.name}:\n\n```\n{tail}\n```\n"
+    )
     path.write_text("\n".join(parts), encoding="utf-8")

@@ -26,12 +26,30 @@ class PromptsTest(unittest.TestCase):
 
     def task(self, role, lens=None, **vars_):
         output = f"round-{vars_.get('round', 1)}/review-{lens}.md" if role == "reviewer" else OUTPUT[role]
-        base = {"issue": 4, "branch": "puxirum/004-editar-titulo", "round": 1, "port": 5230,
-                "worktree": str(self.repo / ".worktrees/004-editar-titulo"), "main_checkout": str(self.repo),
-                "feedback": None, "retry": None, "attempt": 1, "risk": "low", "surfaces": ["ui"]}
+        base = {
+            "issue": 4,
+            "branch": "puxirum/004-editar-titulo",
+            "round": 1,
+            "port": 5230,
+            "worktree": str(self.repo / ".worktrees/004-editar-titulo"),
+            "main_checkout": str(self.repo),
+            "feedback": None,
+            "retry": None,
+            "attempt": 1,
+            "risk": "low",
+            "surfaces": ["ui"],
+        }
         base.update(vars_)
-        return AgentTask(role=role, lens=lens, job_id="004-editar-titulo", model="sonnet",
-                         cwd=self.repo, job_dir=self.job_dir, output=self.job_dir / output, vars=base)
+        return AgentTask(
+            role=role,
+            lens=lens,
+            job_id="004-editar-titulo",
+            model="sonnet",
+            cwd=self.repo,
+            job_dir=self.job_dir,
+            output=self.job_dir / output,
+            vars=base,
+        )
 
     def all_tasks(self):
         yield self.task("intake")

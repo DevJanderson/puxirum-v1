@@ -18,8 +18,14 @@ class RouteTest(unittest.TestCase):
                 self.assertEqual(reviewers(c, risk, surfaces), want)
 
     def test_surface_overrides_risk_model(self):
-        c = parse({"routing": {"risk": {"low": {"code": "haiku"}, "medium": {"code": "haiku"}, "high": {"code": "haiku"}},
-                               "surfaces": {"security": {"code": "opus", "security": "opus"}}}})
+        c = parse(
+            {
+                "routing": {
+                    "risk": {"low": {"code": "haiku"}, "medium": {"code": "haiku"}, "high": {"code": "haiku"}},
+                    "surfaces": {"security": {"code": "opus", "security": "opus"}},
+                }
+            }
+        )
         self.assertEqual(reviewers(c, "low", ["security"]), {"code": "opus", "security": "opus"})
 
     def test_unknown_surface_or_risk(self):

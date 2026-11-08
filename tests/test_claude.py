@@ -23,10 +23,17 @@ class ClaudeRunnerTest(unittest.TestCase):
         self.worktree.mkdir(parents=True)
         self.job_dir.mkdir(parents=True)
         self.record = root / "record.json"
-        self.env = mock.patch.dict(os.environ, {
-            "FAKE_CLAUDE_RECORD": str(self.record), "SSH_AUTH_SOCK": "/run/agent.sock", "GH_TOKEN": "secret",
-            "TUIOS_SESSION": "s", "TUIOS_PANE_ID": "p", "HOME_KEEP": "yes",
-        })
+        self.env = mock.patch.dict(
+            os.environ,
+            {
+                "FAKE_CLAUDE_RECORD": str(self.record),
+                "SSH_AUTH_SOCK": "/run/agent.sock",
+                "GH_TOKEN": "secret",
+                "TUIOS_SESSION": "s",
+                "TUIOS_PANE_ID": "p",
+                "HOME_KEEP": "yes",
+            },
+        )
         self.env.start()
 
     def tearDown(self):
@@ -34,9 +41,16 @@ class ClaudeRunnerTest(unittest.TestCase):
         self._dir.cleanup()
 
     def task(self, role="builder", lens=None, output="build.md", **vars_):
-        return AgentTask(role=role, lens=lens, job_id="001-x", model="sonnet", cwd=self.worktree,
-                         job_dir=self.job_dir, output=self.job_dir / output,
-                         vars={"round": 1, "attempt": 1, "port": 5200, **vars_})
+        return AgentTask(
+            role=role,
+            lens=lens,
+            job_id="001-x",
+            model="sonnet",
+            cwd=self.worktree,
+            job_dir=self.job_dir,
+            output=self.job_dir / output,
+            vars={"round": 1, "attempt": 1, "port": 5200, **vars_},
+        )
 
     def runner(self, **kw):
         return ClaudeRunner(prompt_for=lambda t: f"You are the {t.name}.", command=(sys.executable, str(FAKE)), **kw)
@@ -93,8 +107,9 @@ class ClaudeRunnerTest(unittest.TestCase):
             self.assertIn(denied, rules["deny"])
 
     def test_reviewer_reads_and_browses_but_does_not_edit_code(self):
-        rules = self.rules(self.task("reviewer", "ux", "round-1/review-ux.md",
-                                     writable=[str(self.job_dir / "round-1" / "evidence")]))
+        rules = self.rules(
+            self.task("reviewer", "ux", "round-1/review-ux.md", writable=[str(self.job_dir / "round-1" / "evidence")])
+        )
         self.assertNotIn(f"Edit(/{self.worktree}/**)", rules["allow"])
         self.assertIn("Bash(agent-browser:*)", rules["allow"])
         self.assertIn(f"Edit(/{self.job_dir}/round-1/evidence/**)", rules["allow"])
@@ -122,8 +137,9 @@ class ClaudeRunnerTest(unittest.TestCase):
     def test_sandbox_is_for_the_builder_and_can_be_turned_off(self):
         task, _ = self.sandboxed()
         self.assertNotIn("sandbox", settings_for(self.task(), POLICIES["builder"]))
-        reviewer = AgentTask("reviewer", "code", "001-x", "haiku", self.worktree, self.job_dir,
-                             self.job_dir / "r.md", dict(task.vars))
+        reviewer = AgentTask(
+            "reviewer", "code", "001-x", "haiku", self.worktree, self.job_dir, self.job_dir / "r.md", dict(task.vars)
+        )
         self.assertNotIn("sandbox", settings_for(reviewer, POLICIES["reviewer"]))
 
     def test_no_role_may_read_secrets_with_its_tools(self):
@@ -150,12 +166,22 @@ class ClaudeRunnerTest(unittest.TestCase):
     def test_git_cannot_push_over_ssh_or_use_stored_credentials(self):
         env = agent_env(self.task())
         start = time.monotonic()
-        res = subprocess.run(["git", "ls-remote", "git@github.com:octocat/Hello-World.git"], env=env,
-                             capture_output=True, text=True, cwd=self.worktree)
+        res = subprocess.run(
+            ["git", "ls-remote", "git@github.com:octocat/Hello-World.git"],
+            env=env,
+            capture_output=True,
+            text=True,
+            cwd=self.worktree,
+        )
         self.assertNotEqual(res.returncode, 0)
         self.assertLess(time.monotonic() - start, 10, "fails at once, without touching the network")
-        res = subprocess.run(["git", "config", "--get-all", "credential.helper"], env=env, capture_output=True,
-                             text=True, cwd=self.worktree)
+        res = subprocess.run(
+            ["git", "config", "--get-all", "credential.helper"],
+            env=env,
+            capture_output=True,
+            text=True,
+            cwd=self.worktree,
+        )
         self.assertEqual(res.stdout.strip().splitlines()[-1:] or [""], [""], "the last helper is the empty reset")
 
     # ---- results --------------------------------------------------------------------------------

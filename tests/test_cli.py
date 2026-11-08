@@ -16,8 +16,11 @@ from tests.gitrepo import Repos
 class CliTest(unittest.TestCase):
     def setUp(self):
         self.r = Repos()
-        self.r.commit(self.r.main, {".gitignore": ".worktrees/\n.puxirum/state/\n", ".puxirum/checks.sh": "true\n",
-                                    "app.txt": "v1\n"}, "init")
+        self.r.commit(
+            self.r.main,
+            {".gitignore": ".worktrees/\n.puxirum/state/\n", ".puxirum/checks.sh": "true\n", "app.txt": "v1\n"},
+            "init",
+        )
         self.r.push_main()
         self.forge = FakeForge(operator="op")
         self.runner = FakeRunner(agents.happy(builder=agents.builder(status="BLOCKED")))

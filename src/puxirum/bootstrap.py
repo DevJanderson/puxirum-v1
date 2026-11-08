@@ -198,8 +198,11 @@ def doctor(repo: Path, forge: Forge, which: Callable[[str], str | None] = shutil
             else:
                 add("fail", f"{rel.rsplit('/', 1)[0]}/ is ignored by git", "add it to .gitignore")
         tracked = git("ls-files", "--error-unmatch", cfg.checks).returncode == 0
-        add("ok" if tracked else "warn", f"{cfg.checks} is committed",
-            "" if tracked else "commit it so every worktree's gate uses the same checks")
+        add(
+            "ok" if tracked else "warn",
+            f"{cfg.checks} is committed",
+            "" if tracked else "commit it so every worktree's gate uses the same checks",
+        )
 
     if which("gh") is None:
         add("fail", "gh CLI", "install it: https://cli.github.com")
@@ -210,8 +213,11 @@ def doctor(repo: Path, forge: Forge, which: Callable[[str], str | None] = shutil
                 names = set(forge.labels())
                 for attr in LABELS:
                     name = getattr(cfg, attr)
-                    add("ok" if name in names else "fail", f"label {name}",
-                        "" if name in names else "run `puxirum init`")
+                    add(
+                        "ok" if name in names else "fail",
+                        f"label {name}",
+                        "" if name in names else "run `puxirum init`",
+                    )
         except Exception as e:  # noqa: BLE001 - any gh failure is a doctor finding
             add("fail", "gh can reach GitHub", str(e).splitlines()[0] if str(e) else type(e).__name__)
 
@@ -222,7 +228,11 @@ def doctor(repo: Path, forge: Forge, which: Callable[[str], str | None] = shutil
             add("warn", f"{tool} not found", f"needed by the {phase}")
     if cfg is not None and cfg.sandbox:
         missing = [tool for tool in ("bwrap", "socat") if which(tool) is None]
-        add("fail" if missing else "ok", "builder sandbox",
+        add(
+            "fail" if missing else "ok",
+            "builder sandbox",
             f"install {' and '.join(missing)} (pacman -S bubblewrap socat), or set [agents] sandbox = false"
-            if missing else "bwrap and socat found")
+            if missing
+            else "bwrap and socat found",
+        )
     return checks

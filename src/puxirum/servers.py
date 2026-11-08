@@ -36,9 +36,17 @@ def listening(port: int) -> bool:
 
 
 @contextlib.contextmanager
-def running(command: Sequence[str], cwd: Path, port: int, log_path: Path, *, setup: Sequence[str] = (),
-            ready_timeout_s: float = 60, setup_timeout_s: float = 900,
-            env: dict[str, str] | None = None) -> Iterator[str]:
+def running(
+    command: Sequence[str],
+    cwd: Path,
+    port: int,
+    log_path: Path,
+    *,
+    setup: Sequence[str] = (),
+    ready_timeout_s: float = 60,
+    setup_timeout_s: float = 900,
+    env: dict[str, str] | None = None,
+) -> Iterator[str]:
     """Run setup, start the server and yield its URL; stop it on exit."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
     full_env = {**os.environ, **(env or {}), "PORT": str(port)}
@@ -47,8 +55,15 @@ def running(command: Sequence[str], cwd: Path, port: int, log_path: Path, *, set
             log.write(f"$ {' '.join(setup)}\n")
             log.flush()
             try:
-                res = subprocess.run(list(setup), cwd=cwd, env=full_env, stdin=subprocess.DEVNULL, stdout=log,
-                                     stderr=subprocess.STDOUT, timeout=setup_timeout_s)
+                res = subprocess.run(
+                    list(setup),
+                    cwd=cwd,
+                    env=full_env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    timeout=setup_timeout_s,
+                )
             except subprocess.TimeoutExpired:
                 raise ServerError(f"setup timed out after {setup_timeout_s:.0f}s; see {log_path.name}") from None
             if res.returncode != 0:
@@ -58,8 +73,15 @@ def running(command: Sequence[str], cwd: Path, port: int, log_path: Path, *, set
         argv = [arg.replace("{port}", str(port)) for arg in command]
         log.write(f"$ {' '.join(argv)}\n")
         log.flush()
-        proc = subprocess.Popen(argv, cwd=cwd, env=full_env, stdin=subprocess.DEVNULL, stdout=log,
-                                stderr=subprocess.STDOUT, start_new_session=True)
+        proc = subprocess.Popen(
+            argv,
+            cwd=cwd,
+            env=full_env,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
         try:
             deadline = time.monotonic() + ready_timeout_s
             while not listening(port):
@@ -67,8 +89,9 @@ def running(command: Sequence[str], cwd: Path, port: int, log_path: Path, *, set
                 if code is not None:
                     raise ServerError(f"`{' '.join(argv)}` exited with {code} before listening; see {log_path.name}")
                 if time.monotonic() > deadline:
-                    raise ServerError(f"nothing listened on port {port} after {ready_timeout_s:.0f}s; "
-                                      f"see {log_path.name}")
+                    raise ServerError(
+                        f"nothing listened on port {port} after {ready_timeout_s:.0f}s; see {log_path.name}"
+                    )
                 time.sleep(POLL_S)
             yield f"http://localhost:{port}"
         finally:

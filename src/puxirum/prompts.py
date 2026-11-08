@@ -119,9 +119,11 @@ class Prompts:
         if not retry:
             return ""
         quoted = "\n".join(f"> {line}" for line in str(retry).splitlines())
-        return ("\n## Your previous attempt was rejected\n\n"
-                f"The coordinator rejected your last attempt at this task:\n\n{quoted}\n\n"
-                "Fix that in this attempt. The rest of this task is unchanged.\n")
+        return (
+            "\n## Your previous attempt was rejected\n\n"
+            f"The coordinator rejected your last attempt at this task:\n\n{quoted}\n\n"
+            "Fix that in this attempt. The rest of this task is unchanged.\n"
+        )
 
     @staticmethod
     def _previous_intakes(d: Path) -> str:
@@ -129,15 +131,19 @@ class Prompts:
         if not earlier:
             return ""
         paths = ", ".join(f"`{p}`" for p in earlier)
-        return (f"3. Earlier intake decisions for this issue: {paths}. The author or the operator has replied "
-                "since; decide again with the new information.")
+        return (
+            f"3. Earlier intake decisions for this issue: {paths}. The author or the operator has replied "
+            "since; decide again with the new information."
+        )
 
     @staticmethod
     def _edge_cases_rule(surfaces: list[str]) -> str:
         if "ui" in surfaces:
-            return ("This change has a user interface, so `## Edge cases` is required and can't say \"None.\": "
-                    "list each case the builder must handle and the reviewers must try, such as no items, many "
-                    "items, very long text, keyboard-only use, a 375px-wide screen and every theme the app has.")
+            return (
+                'This change has a user interface, so `## Edge cases` is required and can\'t say "None.": '
+                "list each case the builder must handle and the reviewers must try, such as no items, many "
+                "items, very long text, keyboard-only use, a 375px-wide screen and every theme the app has."
+            )
         return "Write `None.` under `## Edge cases` when the change has no user-facing behaviour."
 
     @staticmethod
@@ -152,8 +158,10 @@ class Prompts:
             except (FileNotFoundError, MalformedFile):
                 pass
             if gate_failed:
-                items.append(f"`{prev / 'checks.md'}` and `{prev / 'checks.log'}`: the checks failed on your "
-                             "last round. Fix that first.")
+                items.append(
+                    f"`{prev / 'checks.md'}` and `{prev / 'checks.log'}`: the checks failed on your "
+                    "last round. Fix that first."
+                )
             else:
                 for review in sorted(prev.glob("review-*.md")):
                     try:
@@ -164,8 +172,10 @@ class Prompts:
         if feedback:
             k = Path(feedback).stem.split("-", 1)[1]
             escalation = d / f"escalation-{k}.md"
-            items.append(f"`{feedback}`: a person's decision after the job escalated (see `{escalation}`). "
-                         "Where it disagrees with the spec or a review, the person wins.")
+            items.append(
+                f"`{feedback}`: a person's decision after the job escalated (see `{escalation}`). "
+                "Where it disagrees with the spec or a review, the person wins."
+            )
         return "\n".join(f"{i}. {text}" for i, text in enumerate(items, start=3))
 
     @staticmethod
@@ -175,8 +185,10 @@ class Prompts:
         for n in range(rnd - 1, 0, -1):
             path = d / f"round-{n}" / f"review-{lens}.md"
             if path.is_file():
-                return (f"5. `{path}`: your own review of round {n}. Check each of its findings: say which are "
-                        "fixed, and keep the ones that aren't.")
+                return (
+                    f"5. `{path}`: your own review of round {n}. Check each of its findings: say which are "
+                    "fixed, and keep the ones that aren't."
+                )
         return ""
 
     @staticmethod
@@ -184,9 +196,13 @@ class Prompts:
         url = task.vars.get("app_url")
         session = f"{task.job_id}-{task.lens or task.role}"
         if url:
-            return (f"The coordinator is running the app for this job at {url}. Look at it with the `agent-browser` "
-                    f"CLI (run `agent-browser skills get core` first), passing `--session {session}` on every call, "
-                    f"and run `agent-browser --session {session} close` when you're done. Don't start another "
-                    "server, and don't sign in or submit real data.")
-        return ("No app is running for this job. If a criterion can only be seen on a page, say in your file that "
-                "you couldn't see it; don't claim you did.")
+            return (
+                f"The coordinator is running the app for this job at {url}. Look at it with the `agent-browser` "
+                f"CLI (run `agent-browser skills get core` first), passing `--session {session}` on every call, "
+                f"and run `agent-browser --session {session} close` when you're done. Don't start another "
+                "server, and don't sign in or submit real data."
+            )
+        return (
+            "No app is running for this job. If a criterion can only be seen on a page, say in your file that "
+            "you couldn't see it; don't claim you did."
+        )

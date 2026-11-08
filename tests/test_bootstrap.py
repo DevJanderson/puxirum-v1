@@ -87,6 +87,7 @@ class DoctorTest(unittest.TestCase):
 
         def offline():
             raise ForgeError("gh: not logged in")
+
         self.forge.operator = offline
         self.assertEqual(self.levels()["gh can reach GitHub"], ("fail", "gh: not logged in"))
 

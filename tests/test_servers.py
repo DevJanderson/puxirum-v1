@@ -67,9 +67,11 @@ class ServersTest(unittest.TestCase):
 
     def test_children_are_stopped_too(self):
         pidfile = self.dir / "child.pid"
-        script = (f"import subprocess,sys; c=subprocess.Popen(['sleep','60']); open('{pidfile}','w').write(str(c.pid)); "
-                  f"import runpy; sys.argv=['http.server','{self.port}','--bind','127.0.0.1']; "
-                  "runpy.run_module('http.server', run_name='__main__')")
+        script = (
+            f"import subprocess,sys; c=subprocess.Popen(['sleep','60']); open('{pidfile}','w').write(str(c.pid)); "
+            f"import runpy; sys.argv=['http.server','{self.port}','--bind','127.0.0.1']; "
+            "runpy.run_module('http.server', run_name='__main__')"
+        )
         with servers.running([sys.executable, "-c", script], self.dir, self.port, self.log):
             pass
         time.sleep(0.2)
@@ -77,9 +79,11 @@ class ServersTest(unittest.TestCase):
             os.kill(int(pidfile.read_text()), 0)
 
     def test_port_env_and_placeholder(self):
-        script = "import os,sys; assert os.environ['PORT']==sys.argv[1]; " \
-                 "import runpy; sys.argv=['http.server',sys.argv[1],'--bind','127.0.0.1']; " \
-                 "runpy.run_module('http.server', run_name='__main__')"
+        script = (
+            "import os,sys; assert os.environ['PORT']==sys.argv[1]; "
+            "import runpy; sys.argv=['http.server',sys.argv[1],'--bind','127.0.0.1']; "
+            "runpy.run_module('http.server', run_name='__main__')"
+        )
         with servers.running([sys.executable, "-c", script, "{port}"], self.dir, self.port, self.log):
             self.assertTrue(servers.listening(self.port))
 

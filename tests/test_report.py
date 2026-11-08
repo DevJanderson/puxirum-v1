@@ -23,8 +23,11 @@ def at(seconds):
 class ReportTest(unittest.TestCase):
     def setUp(self):
         self.r = Repos()
-        self.r.commit(self.r.main, {".gitignore": ".worktrees/\n.puxirum/state/\n", ".puxirum/checks.sh": "true\n",
-                                    "app.txt": "v1\n"}, "init")
+        self.r.commit(
+            self.r.main,
+            {".gitignore": ".worktrees/\n.puxirum/state/\n", ".puxirum/checks.sh": "true\n", "app.txt": "v1\n"},
+            "init",
+        )
         self.r.push_main()
         self.store = Store(self.r.main)
         self.forge = FakeForge(operator="op")
@@ -41,32 +44,72 @@ class ReportTest(unittest.TestCase):
 
     def test_active_and_waiting_time(self):
         """Like the pilot's #3: 16 minutes of its 30 were spent waiting for the author."""
-        job = self.fake_job([
-            {"at": at(0), "type": "created"},
-            {"at": at(20), "type": "transition", "from": "intake", "to": "needs-info"},
-            {"at": at(1000), "type": "transition", "from": "needs-info", "to": "intake"},
-            {"at": at(1020), "type": "transition", "from": "intake", "to": "spec"},
-            {"at": at(1800), "type": "transition", "from": "merging", "to": "merged"},
-            {"at": at(1810), "type": "transition", "from": "merged", "to": "ignored"},
-        ])
+        job = self.fake_job(
+            [
+                {"at": at(0), "type": "created"},
+                {"at": at(20), "type": "transition", "from": "intake", "to": "needs-info"},
+                {"at": at(1000), "type": "transition", "from": "needs-info", "to": "intake"},
+                {"at": at(1020), "type": "transition", "from": "intake", "to": "spec"},
+                {"at": at(1800), "type": "transition", "from": "merging", "to": "merged"},
+                {"at": at(1810), "type": "transition", "from": "merged", "to": "ignored"},
+            ]
+        )
         r = report.job_report(self.store, job)
         self.assertEqual((r.active_seconds, r.waiting_seconds), (20 + 800, 980))
         self.assertEqual(r.total_seconds, 1800)
 
     def test_unfinished_job_counts_until_now(self):
-        job = self.fake_job([{"at": at(0), "type": "created"},
-                             {"at": at(60), "type": "transition", "from": "intake", "to": "needs-human"}])
+        job = self.fake_job(
+            [
+                {"at": at(0), "type": "created"},
+                {"at": at(60), "type": "transition", "from": "intake", "to": "needs-human"},
+            ]
+        )
         r = report.job_report(self.store, job, until=T0 + timedelta(seconds=600))
         self.assertEqual((r.active_seconds, r.waiting_seconds), (60, 540))
 
     def test_costs_by_role_and_model_and_unpriced_runs(self):
-        job = self.fake_job([
-            {"at": at(0), "type": "created"},
-            {"at": at(1), "type": "agent", "role": "intake", "lens": None, "model": "sonnet", "cost_usd": 0.05, "seconds": 10},
-            {"at": at(2), "type": "agent", "role": "reviewer", "lens": "ux", "model": "sonnet", "cost_usd": 0.20, "seconds": 30},
-            {"at": at(3), "type": "agent", "role": "reviewer", "lens": "code", "model": "haiku", "cost_usd": 0.01, "seconds": 5},
-            {"at": at(4), "type": "agent", "role": "builder", "lens": None, "model": "sonnet", "cost_usd": None, "seconds": 50},
-        ])
+        job = self.fake_job(
+            [
+                {"at": at(0), "type": "created"},
+                {
+                    "at": at(1),
+                    "type": "agent",
+                    "role": "intake",
+                    "lens": None,
+                    "model": "sonnet",
+                    "cost_usd": 0.05,
+                    "seconds": 10,
+                },
+                {
+                    "at": at(2),
+                    "type": "agent",
+                    "role": "reviewer",
+                    "lens": "ux",
+                    "model": "sonnet",
+                    "cost_usd": 0.20,
+                    "seconds": 30,
+                },
+                {
+                    "at": at(3),
+                    "type": "agent",
+                    "role": "reviewer",
+                    "lens": "code",
+                    "model": "haiku",
+                    "cost_usd": 0.01,
+                    "seconds": 5,
+                },
+                {
+                    "at": at(4),
+                    "type": "agent",
+                    "role": "builder",
+                    "lens": None,
+                    "model": "sonnet",
+                    "cost_usd": None,
+                    "seconds": 50,
+                },
+            ]
+        )
         r = report.job_report(self.store, job)
         self.assertAlmostEqual(r.cost_usd, 0.26)
         self.assertEqual((r.agents, r.unpriced, r.agent_seconds), (4, 1, 95))
@@ -93,6 +136,7 @@ class ReportTest(unittest.TestCase):
     def test_a_run_that_crashes_is_still_recorded(self):
         def crash(task):
             raise KeyboardInterrupt
+
         self.forge.add_issue("Editar título", author="ana")
         with self.assertRaises(KeyboardInterrupt):
             self.engine(agents.happy(spec=crash)).run()

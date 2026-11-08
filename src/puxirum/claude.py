@@ -36,8 +36,15 @@ STRIPPED_ENV = ("SSH_AUTH_SOCK", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKE
 STRIPPED_PREFIXES = ("TUIOS_",)
 
 READ_ONLY_GIT = ("git log:*", "git diff:*", "git show:*", "git status:*", "git branch:*", "git rev-parse:*")
-BUILDER_DENY = ("git push:*", "git remote:*", "git config:*", "gh:*", "git reset --hard origin:*",
-                "git rebase:*", "git commit --amend:*")
+BUILDER_DENY = (
+    "git push:*",
+    "git remote:*",
+    "git config:*",
+    "gh:*",
+    "git reset --hard origin:*",
+    "git rebase:*",
+    "git commit --amend:*",
+)
 
 
 @dataclass(frozen=True)
@@ -51,11 +58,17 @@ class Policy:
 POLICIES: dict[str, Policy] = {
     "intake": Policy(tools=("Read", "Grep", "Glob", "Write")),
     "spec": Policy(tools=("Read", "Grep", "Glob", "Write", "Bash"), bash_allow=READ_ONLY_GIT + ("ls:*",)),
-    "builder": Policy(tools=("Read", "Grep", "Glob", "Edit", "Write", "Bash"), bash_allow=("*",),
-                      bash_deny=BUILDER_DENY, edits_worktree=True),
-    "reviewer": Policy(tools=("Read", "Grep", "Glob", "Write", "Bash"),
-                       bash_allow=READ_ONLY_GIT + ("ls:*", "agent-browser:*", "curl -s http://127.0.0.1:*",
-                                                   "curl -s http://localhost:*")),
+    "builder": Policy(
+        tools=("Read", "Grep", "Glob", "Edit", "Write", "Bash"),
+        bash_allow=("*",),
+        bash_deny=BUILDER_DENY,
+        edits_worktree=True,
+    ),
+    "reviewer": Policy(
+        tools=("Read", "Grep", "Glob", "Write", "Bash"),
+        bash_allow=READ_ONLY_GIT
+        + ("ls:*", "agent-browser:*", "curl -s http://127.0.0.1:*", "curl -s http://localhost:*"),
+    ),
     "approver": Policy(tools=("Read", "Grep", "Glob", "Write", "Bash"), bash_allow=READ_ONLY_GIT),
 }
 
@@ -67,8 +80,11 @@ def _abs_rule(tool: str, path: Path, tree: bool = False) -> str:
 
 
 def settings_for(task: AgentTask, policy: Policy, extra_allow: tuple[str, ...] = ()) -> dict:
-    allow = [_abs_rule("Read", task.cwd, tree=True), _abs_rule("Read", task.job_dir, tree=True),
-             _abs_rule("Edit", task.output)]
+    allow = [
+        _abs_rule("Read", task.cwd, tree=True),
+        _abs_rule("Read", task.job_dir, tree=True),
+        _abs_rule("Edit", task.output),
+    ]
     if policy.edits_worktree:
         allow.append(_abs_rule("Edit", task.cwd, tree=True))
     for extra in task.vars.get("writable", ()) or ():
@@ -108,8 +124,13 @@ def sandbox_for(task: AgentTask) -> dict:
     """
     git_dir = Path(task.vars["main_checkout"]) / ".git"
     branch = str(task.vars["branch"])
-    writes = [str(task.cwd), str(git_dir / "objects"), str(git_dir / "worktrees" / Path(task.cwd).name),
-              str(git_dir / "logs"), str((git_dir / "refs" / "heads" / branch).parent)]
+    writes = [
+        str(task.cwd),
+        str(git_dir / "objects"),
+        str(git_dir / "worktrees" / Path(task.cwd).name),
+        str(git_dir / "logs"),
+        str((git_dir / "refs" / "heads" / branch).parent),
+    ]
     writes += [str(Path(p)) for p in task.vars.get("sandbox_writes") or ()]
     return {
         "enabled": True,
@@ -122,31 +143,38 @@ def sandbox_for(task: AgentTask) -> dict:
 
 
 def agent_env(task: AgentTask, base: dict[str, str] | None = None) -> dict[str, str]:
-    env = {k: v for k, v in (base if base is not None else os.environ).items()
-           if k not in STRIPPED_ENV and not k.startswith(STRIPPED_PREFIXES)}
+    env = {
+        k: v
+        for k, v in (base if base is not None else os.environ).items()
+        if k not in STRIPPED_ENV and not k.startswith(STRIPPED_PREFIXES)
+    }
     gh_dir = task.job_dir / ".gh-empty"
     gh_dir.mkdir(parents=True, exist_ok=True)
-    env.update({
-        "GIT_SSH_COMMAND": "false",
-        "GIT_TERMINAL_PROMPT": "0",
-        "GIT_CONFIG_COUNT": "1",
-        "GIT_CONFIG_KEY_0": "credential.helper",
-        "GIT_CONFIG_VALUE_0": "",
-        "GH_CONFIG_DIR": str(gh_dir),
-        "GH_PROMPT_DISABLED": "1",
-        "PUXIRUM_JOB": task.job_id,
-        "PUXIRUM_ROLE": task.name,
-    })
+    env.update(
+        {
+            "GIT_SSH_COMMAND": "false",
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "credential.helper",
+            "GIT_CONFIG_VALUE_0": "",
+            "GH_CONFIG_DIR": str(gh_dir),
+            "GH_PROMPT_DISABLED": "1",
+            "PUXIRUM_JOB": task.job_id,
+            "PUXIRUM_ROLE": task.name,
+        }
+    )
     if task.vars.get("port") is not None:
         env["PUXIRUM_PORT"] = str(task.vars["port"])
     if task.role == "builder" and task.vars.get("checks"):
         package_root = str(Path(__file__).resolve().parents[1])
-        env.update({
-            "PUXIRUM_WORKTREE": str(task.cwd),
-            "PUXIRUM_CHECKS": str(task.vars["checks"]),
-            "PUXIRUM_CHECKS_TIMEOUT": str(task.vars.get("checks_timeout_s") or 1800),
-            "PYTHONPATH": os.pathsep.join(p for p in (package_root, env.get("PYTHONPATH")) if p),
-        })
+        env.update(
+            {
+                "PUXIRUM_WORKTREE": str(task.cwd),
+                "PUXIRUM_CHECKS": str(task.vars["checks"]),
+                "PUXIRUM_CHECKS_TIMEOUT": str(task.vars.get("checks_timeout_s") or 1800),
+                "PYTHONPATH": os.pathsep.join(p for p in (package_root, env.get("PYTHONPATH")) if p),
+            }
+        )
     return env
 
 
@@ -162,13 +190,20 @@ class ClaudeRunner:
     def argv(self, task: AgentTask) -> list[str]:
         policy = POLICIES[task.role]
         args = [
-            *self.command, "-p",
-            "--model", task.model,
-            "--output-format", "json",
-            "--permission-mode", "dontAsk",
-            "--tools", ",".join(policy.tools),
-            "--settings", json.dumps(settings_for(task, policy)),
-            "--setting-sources", "",
+            *self.command,
+            "-p",
+            "--model",
+            task.model,
+            "--output-format",
+            "json",
+            "--permission-mode",
+            "dontAsk",
+            "--tools",
+            ",".join(policy.tools),
+            "--settings",
+            json.dumps(settings_for(task, policy)),
+            "--setting-sources",
+            "",
             "--strict-mcp-config",
             "--no-session-persistence",
         ]
@@ -185,8 +220,16 @@ class ClaudeRunner:
         (logs / f"{stem}.prompt.md").write_text(prompt, encoding="utf-8")
         start = time.monotonic()
         with open(out_path, "w", encoding="utf-8") as out, open(err_path, "w", encoding="utf-8") as err:
-            proc = subprocess.Popen(self.argv(task), cwd=task.cwd, env=agent_env(task), stdin=subprocess.PIPE,
-                                    stdout=out, stderr=err, text=True, start_new_session=True)
+            proc = subprocess.Popen(
+                self.argv(task),
+                cwd=task.cwd,
+                env=agent_env(task),
+                stdin=subprocess.PIPE,
+                stdout=out,
+                stderr=err,
+                text=True,
+                start_new_session=True,
+            )
             assert proc.stdin is not None  # stdin=PIPE
             try:
                 proc.stdin.write(prompt)

@@ -27,5 +27,15 @@ if mode == "child":
     child = subprocess.Popen(["sleep", "60"])
     with open(os.environ["FAKE_CLAUDE_PID"], "w") as f:
         f.write(str(child.pid))
-print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "total_cost_usd": 0.123,
-                  "num_turns": 3, "result": "done"}))
+print(
+    json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "total_cost_usd": 0.123,
+            "num_turns": 3,
+            "result": "done",
+        }
+    )
+)

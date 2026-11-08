@@ -80,8 +80,15 @@ class Engine:
         resume, waiting_ready, new, other = [], [], [], []
 
         def row(action: str, j: Job | None, issue: int, note: str) -> Row:
-            return Row(action, issue, j.id if j else None, j.stage if j else None,
-                       j.round if j else 0, j.pr if j else None, note)
+            return Row(
+                action,
+                issue,
+                j.id if j else None,
+                j.stage if j else None,
+                j.round if j else 0,
+                j.pr if j else None,
+                note,
+            )
 
         for issue in issues:
             j = jobs.get(issue.number)
@@ -197,8 +204,9 @@ class Engine:
             self.world.drain(job.id)
             return True
         except EffectError as e:
-            failures = sum(1 for ev in self.store.events(job.id)
-                           if ev["type"] == "effect-failed" and ev.get("key") == e.effect.key)
+            failures = sum(
+                1 for ev in self.store.events(job.id) if ev["type"] == "effect-failed" and ev.get("key") == e.effect.key
+            )
             if failures < self.cfg.effect_attempts:
                 self.log(f"{job.id}: {e} (attempt {failures} of {self.cfg.effect_attempts})")
                 return False
@@ -262,9 +270,19 @@ class Engine:
         missing = [lens for lens in job.reviewers if f"review-{lens}@{job.seq}" not in job.done]
         if missing:
             with ThreadPoolExecutor(max_workers=len(missing)) as pool:
-                list(pool.map(lambda lens: self._agent(
-                    job, f"review-{lens}@{job.seq}", "reviewer", lens,
-                    f"round-{job.round}/review-{lens}.md", self._worktree(job)), missing))
+                list(
+                    pool.map(
+                        lambda lens: self._agent(
+                            job,
+                            f"review-{lens}@{job.seq}",
+                            "reviewer",
+                            lens,
+                            f"round-{job.round}/review-{lens}.md",
+                            self._worktree(job),
+                        ),
+                        missing,
+                    )
+                )
             return True
         changes, invalid = [], False
         for lens in job.reviewers:
@@ -272,9 +290,13 @@ class Engine:
             if f is None:
                 invalid = True
             elif f.header["VERDICT"] == "PASS" and self._missing_evidence(job, lens):
-                self._retry(job, f"review-{lens}@{job.seq}", f"round-{job.round}/review-{lens}.md",
-                            f"VERDICT: PASS without screenshots: save them in {self._round_dir(job) / 'evidence'} "
-                            f"with names starting `{lens}-`")
+                self._retry(
+                    job,
+                    f"review-{lens}@{job.seq}",
+                    f"round-{job.round}/review-{lens}.md",
+                    f"VERDICT: PASS without screenshots: save them in {self._round_dir(job) / 'evidence'} "
+                    f"with names starting `{lens}-`",
+                )
                 invalid = True
             elif f.header["VERDICT"] == "CHANGES":
                 changes.append(lens)
@@ -306,11 +328,11 @@ class Engine:
             ok, output = self.git.sync_with_base(job.worktree, base)
             if not ok:
                 raise Escalate(f"The branch conflicts with {base}:\n\n```\n{output}\n```")
-            result = gate.run(self.cfg, self.world.repo, self._worktree(job), self._round_dir(job),
-                              merge=True, env=self._env(job))
+            result = gate.run(
+                self.cfg, self.world.repo, self._worktree(job), self._round_dir(job), merge=True, env=self._env(job)
+            )
             if result.verdict != "PASS":
-                raise Escalate(f"The gate failed after syncing with {base}. "
-                               f"See round-{job.round}/merge-checks.md.")
+                raise Escalate(f"The gate failed after syncing with {base}. See round-{job.round}/merge-checks.md.")
             self.git.push(job.worktree, job.branch)
             self.forge.mark_ready(job.pr)
             self.forge.merge_pr(job.pr, self.cfg.merge_method)
@@ -370,13 +392,20 @@ class Engine:
         """Advance the job, save it with its effects pending, then run them."""
         with self.store.lock():
             job = self.store.load(job_id)
-            new, effects = advance(job, target, cfg=self.cfg, job_dir=self.store.job_dir(job_id),
-                                   facts=self.world.facts(job), reason=reason)
+            new, effects = advance(
+                job,
+                target,
+                cfg=self.cfg,
+                job_dir=self.store.job_dir(job_id),
+                facts=self.world.facts(job),
+                reason=reason,
+            )
             new.pending = effects
             new.last_error = None
             self.store.save(new)
-            self.store.event(job_id, "transition", **{"from": job.stage, "to": target, "seq": new.seq,
-                                                      "reason": reason})
+            self.store.event(
+                job_id, "transition", **{"from": job.stage, "to": target, "seq": new.seq, "reason": reason}
+            )
         self.log(f"{job_id}: {job.stage} → {target}")
         self._drain(new)
         return new
@@ -438,9 +467,14 @@ class Engine:
         before = _fingerprint(out)
         self._update(job.id, lambda j: j.attempts.__setitem__(key, attempts + 1))
         task = AgentTask(
-            role=role, lens=lens, job_id=job.id,
+            role=role,
+            lens=lens,
+            job_id=job.id,
             model=job.reviewers[lens] if lens else self.cfg.models[role],
-            cwd=cwd, job_dir=d, output=out, vars=self._vars(job, role, lens, attempts),
+            cwd=cwd,
+            job_dir=d,
+            output=out,
+            vars=self._vars(job, role, lens, attempts),
         )
         self.log(f"{job.id}: running {task.name} ({task.model}), attempt {attempts + 1}")
         error = None
@@ -449,8 +483,18 @@ class Engine:
         except servers.ServerError as e:
             error = f"the app didn't start for the {task.name} agent: {e}"
             result = AgentResult(exit_code=1, seconds=0.0)
-        self.store.event(job.id, "agent", run=self.run_id, key=key, role=role, lens=lens, model=task.model,
-                         exit_code=result.exit_code, seconds=round(result.seconds, 3), cost_usd=result.cost_usd)
+        self.store.event(
+            job.id,
+            "agent",
+            run=self.run_id,
+            key=key,
+            role=role,
+            lens=lens,
+            model=task.model,
+            exit_code=result.exit_code,
+            seconds=round(result.seconds, 3),
+            cost_usd=result.cost_usd,
+        )
         if error is None and result.exit_code != 0:
             error = f"the {task.name} agent exited with {result.exit_code}"
         elif error is None and (_fingerprint(out) == before or before is not None and not out.exists()):
@@ -481,8 +525,15 @@ class Engine:
             return self.runner.run(task)
         log = task.job_dir / "logs" / f"app-{task.name.replace(':', '-')}-r{job.round}.log"
         port = int(task.vars["port"])
-        with servers.running(self.cfg.app_command, task.cwd, port, log, setup=self.cfg.app_setup,
-                             ready_timeout_s=self.cfg.app_ready_timeout_s, env=self._env(job)) as url:
+        with servers.running(
+            self.cfg.app_command,
+            task.cwd,
+            port,
+            log,
+            setup=self.cfg.app_setup,
+            ready_timeout_s=self.cfg.app_ready_timeout_s,
+            env=self._env(job),
+        ) as url:
             self.log(f"{job.id}: app for {task.name} at {url}")
             return self.runner.run(dataclasses.replace(task, vars={**task.vars, "app_url": url}))
 
@@ -498,8 +549,13 @@ class Engine:
         lenses = list(job.reviewers)
         port = self._port(job) + (1 + lenses.index(lens) if lens else 0)
         return {
-            "issue": job.issue, "branch": job.branch, "base": self.cfg.base_branch, "round": job.round,
-            "port": port, "worktree": str(self._worktree(job)), "main_checkout": str(self.world.repo),
+            "issue": job.issue,
+            "branch": job.branch,
+            "base": self.cfg.base_branch,
+            "round": job.round,
+            "port": port,
+            "worktree": str(self._worktree(job)),
+            "main_checkout": str(self.world.repo),
             "feedback": str(feedback[-1]) if feedback and job.feedback else None,
             "retry": job.last_error if attempts else None,
             "attempt": attempts + 1,
@@ -542,4 +598,3 @@ def _fingerprint(path: Path) -> tuple[int, str] | None:
     if not path.exists():
         return None
     return path.stat().st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest()
-

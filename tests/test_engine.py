@@ -18,12 +18,16 @@ class EngineBase(unittest.TestCase):
     def setUp(self):
         self.r = Repos()
         self.repo = self.r.main
-        self.r.commit(self.repo, {
-            ".gitignore": ".worktrees/\n.puxirum/state/\n",
-            ".puxirum/checks.sh": CHECKS,
-            ".puxirum/config.toml": "",
-            "app.txt": "v1\n",
-        }, "init")
+        self.r.commit(
+            self.repo,
+            {
+                ".gitignore": ".worktrees/\n.puxirum/state/\n",
+                ".puxirum/checks.sh": CHECKS,
+                ".puxirum/config.toml": "",
+                "app.txt": "v1\n",
+            },
+            "init",
+        )
         self.r.push_main()
         self.forge = FakeForge(operator="op")
         self.messages = []
@@ -46,8 +50,9 @@ class EngineBase(unittest.TestCase):
 
     def assertMerged(self, n):
         job = self.job(n)
-        self.assertEqual(job.stage, "merged", f"{job.stage}: {job.escalations or job.last_error}\n" +
-                         "\n".join(self.messages[-15:]))
+        self.assertEqual(
+            job.stage, "merged", f"{job.stage}: {job.escalations or job.last_error}\n" + "\n".join(self.messages[-15:])
+        )
         self.assertEqual(self.forge.pr(job.pr).state, "MERGED")
         self.assertFalse((self.repo / job.worktree).exists())
         self.assertFalse(Git(self.repo).remote_branch_exists(job.branch))
@@ -75,8 +80,16 @@ class EngineTest(EngineBase):
         self.assertEqual(len(comments), 1)
         self.assertIn("Puxirum intake: ACCEPT", comments[0].body)
         d = self.store.job_dir(job.id)
-        for name in ("issue.md", "intake.md", "spec.md", "build.md", "decision.md", "round-1/checks.md",
-                     "round-1/review-code.md", "round-1/merge-checks.md"):
+        for name in (
+            "issue.md",
+            "intake.md",
+            "spec.md",
+            "build.md",
+            "decision.md",
+            "round-1/checks.md",
+            "round-1/review-code.md",
+            "round-1/merge-checks.md",
+        ):
             self.assertTrue((d / name).exists(), name)
         stages = [ev["to"] for ev in self.store.events(job.id) if ev["type"] == "transition"]
         self.assertEqual(stages, ["spec", "build", "gate", "review", "approve", "merging", "merged"])
@@ -183,6 +196,7 @@ class EngineTest(EngineBase):
     def test_malformed_file_makes_the_agent_run_again(self):
         def bad(task):
             task.output.write_text("DECISION: ACCEPT\n")
+
         n = self.issue()
         self.engine(agents.happy(intake=agents.sequence(bad, agents.intake()))).run()
         job = self.assertMerged(n)
@@ -210,6 +224,7 @@ class EngineTest(EngineBase):
                 return first(task)
             # later rounds commit but leave round 1's build.md in place
             agents.commit(task.cwd, {"more.txt": str(calls["n"])}, "more")
+
         self.engine(agents.happy(builder=build, reviewer=agents.reviewer(("CHANGES", "PASS")))).run()
         job = self.job(n)
         self.assertEqual(job.stage, "needs-human")
@@ -219,9 +234,11 @@ class EngineTest(EngineBase):
         def sloppy(task):
             agents.builder()(task)
             (task.cwd / "scratch.txt").write_text("x")
+
         def tidy(task):
             (task.cwd / "scratch.txt").unlink()
             task.output.write_text("STATUS: READY\n\n" + agents.SUMMARY)
+
         n = self.issue()
         self.engine(agents.happy(builder=agents.sequence(sloppy, tidy))).run()
         self.assertMerged(n)
@@ -231,6 +248,7 @@ class EngineTest(EngineBase):
         def meddling(task):
             agents.commit(task.cwd, {"sneaky.txt": "x"}, "review fix")
             agents.reviewer()(task)
+
         n = self.issue()
         self.engine(agents.happy(reviewer=meddling)).run()
         job = self.job(n)
@@ -241,6 +259,7 @@ class EngineTest(EngineBase):
         def crash(task):
             agents.commit(task.cwd, {"half.txt": "x"}, "half")
             raise KeyboardInterrupt
+
         n = self.issue()
         with self.assertRaises(KeyboardInterrupt):
             self.engine(agents.happy(builder=crash)).run()
@@ -256,6 +275,7 @@ class EngineTest(EngineBase):
             agents.approver()(task)
             self.r.commit(self.repo, {"feature-1.txt": "main's version\n"}, "main moved")
             self.r.push_main()
+
         n = self.issue()
         self.engine(agents.happy(approver=approve_then_main_moves)).run()
         job = self.job(n)
@@ -268,6 +288,7 @@ class EngineTest(EngineBase):
             agents.approver()(task)
             self.r.commit(self.repo, {"bug.txt": "x"}, "main broke")
             self.r.push_main()
+
         n = self.issue()
         self.engine(agents.happy(approver=approve_then_main_breaks)).run()
         job = self.job(n)
@@ -309,6 +330,7 @@ class EngineTest(EngineBase):
 
         def down(*a, **k):
             raise ForgeError("forge is down")
+
         e = self.engine(agents.happy(), queue={"effect_attempts": 2})
         self.forge.create_pr = down
         e.run()
@@ -427,11 +449,14 @@ class AppTest(EngineBase):
     def app_engine(self, scripts, **cfg):
         import socket
         import sys
+
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))
             base = s.getsockname()[1] // 10 * 10
-        cfg.setdefault("app", {"command": [sys.executable, "-m", "http.server", "{port}", "--bind", "127.0.0.1"],
-                               "ready_timeout_s": 10})
+        cfg.setdefault(
+            "app",
+            {"command": [sys.executable, "-m", "http.server", "{port}", "--bind", "127.0.0.1"], "ready_timeout_s": 10},
+        )
         cfg.setdefault("ports", {"base": min(base, 64000), "step": 10})
         return self.engine(scripts, **cfg)
 
@@ -449,6 +474,7 @@ class AppTest(EngineBase):
                 evidence.mkdir(parents=True, exist_ok=True)
                 (evidence / f"{lens}-375.png").write_bytes(b"\x89PNG")
             agents.reviewer((verdict,))(task)
+
         return run
 
     def setUp(self):
@@ -456,8 +482,10 @@ class AppTest(EngineBase):
         self.seen = []
 
     def ui_scripts(self, **kw):
-        return agents.happy(intake=agents.intake(surfaces="ui"), **{
-            "reviewer:ux": self.looks("ux"), "reviewer:ui": self.looks("ui"), **kw})
+        return agents.happy(
+            intake=agents.intake(surfaces="ui"),
+            **{"reviewer:ux": self.looks("ux"), "reviewer:ui": self.looks("ui"), **kw},
+        )
 
     def test_ui_reviewers_and_builder_get_a_running_app(self):
         n = self.issue()
@@ -466,6 +494,7 @@ class AppTest(EngineBase):
         def build(task):
             seen_builder.append(task.vars.get("app_url"))
             agents.builder()(task)
+
         e = self.app_engine(self.ui_scripts(builder=build))
         e.run()
         job = self.assertMerged(n)
@@ -475,6 +504,7 @@ class AppTest(EngineBase):
         code = [t for t in self.runner.tasks if t.name == "reviewer:code"][0]
         self.assertNotIn("app_url", code.vars, "the code reviewer doesn't need the app")
         from puxirum import servers
+
         for _, url in self.seen:
             self.assertFalse(servers.listening(int(url.rsplit(":", 1)[1])), "servers are stopped afterwards")
         self.assertTrue((self.store.job_dir(job.id) / "logs").glob("app-reviewer-ux-r1.log"))
@@ -490,8 +520,9 @@ class AppTest(EngineBase):
 
     def test_screenshots_on_the_second_try_are_accepted(self):
         n = self.issue()
-        e = self.app_engine(self.ui_scripts(**{"reviewer:ux": agents.sequence(self.looks("ux", shots=False),
-                                                                           self.looks("ux"))}))
+        e = self.app_engine(
+            self.ui_scripts(**{"reviewer:ux": agents.sequence(self.looks("ux", shots=False), self.looks("ux"))})
+        )
         e.run()
         self.assertMerged(n)
         ux = [t for t in self.runner.tasks if t.name == "reviewer:ux"]
@@ -515,7 +546,10 @@ class AppTest(EngineBase):
 
     def test_a_ui_spec_without_edge_cases_is_sent_back(self):
         def thin_spec(task):
-            task.output.write_text(agents.SPEC.format(title="T").replace("## Edge cases\n- Very long titles.\n", "## Edge cases\nNone.\n"))
+            task.output.write_text(
+                agents.SPEC.format(title="T").replace("## Edge cases\n- Very long titles.\n", "## Edge cases\nNone.\n")
+            )
+
         n = self.issue()
         self.app_engine(self.ui_scripts(spec=agents.sequence(thin_spec, agents.spec()))).run()
         self.assertMerged(n)

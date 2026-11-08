@@ -11,7 +11,8 @@ from puxirum.store import Effect, Job
 SUMMARY = "## Summary\n- one\n- two\n- three\n"
 SHA1, SHA2 = "1" * 40, "2" * 40
 SPEC = (
-    "# Editar título\n\n" + SUMMARY
+    "# Editar título\n\n"
+    + SUMMARY
     + "\n## Context\nx\n\n## Requirements\nx\n\n## Acceptance criteria\n1. Works.\n\n## Out of scope\nx\n\n## Assumptions\nx\n"
 )
 INTAKE_ACCEPT = "DECISION: ACCEPT\nRISK: low\nSURFACES: ui\nRESCOPED: no\n\n" + SUMMARY
@@ -75,8 +76,14 @@ class MachineTest(unittest.TestCase):
     # ---- helpers --------------------------------------------------------------
 
     def job(self, stage, **kw):
-        base = dict(id="004-editar-titulo", issue=4, title="Editar título", branch="puxirum/004-editar-titulo",
-                    worktree=".worktrees/004-editar-titulo", stage=stage)
+        base = dict(
+            id="004-editar-titulo",
+            issue=4,
+            title="Editar título",
+            branch="puxirum/004-editar-titulo",
+            worktree=".worktrees/004-editar-titulo",
+            stage=stage,
+        )
         if stage not in ("intake", "needs-info"):
             base.update(reviewers={"code": "haiku", "ux": "sonnet"}, round=1, round_limit=3, head=SHA1)
         base.update(kw)
@@ -350,8 +357,13 @@ class MachineTest(unittest.TestCase):
     # ---- needs-human -----------------------------------------------------------------------------
 
     def escalated(self, frm="review", **kw):
-        return self.job("needs-human", escalations=[{"from": frm, "round": 3, "reason": "x", "at": "t"}],
-                        round=3, round_limit=3, **kw)
+        return self.job(
+            "needs-human",
+            escalations=[{"from": frm, "round": 3, "reason": "x", "at": "t"}],
+            round=3,
+            round_limit=3,
+            **kw,
+        )
 
     def test_feedback_resumes_build_with_new_rounds(self):
         job = self.escalated()
@@ -381,7 +393,9 @@ class MachineTest(unittest.TestCase):
         self.write("rejection.md", "REJECTED-BY: dev\n\nNot worth it.\n")
         new, effects = self.go(job, "rejected")
         self.assertEqual(new.stage, "rejected")
-        self.assertEqual(self.kinds(effects), ["comment", "labels", "pr_close", "delete_remote_branch", "worktree_remove"])
+        self.assertEqual(
+            self.kinds(effects), ["comment", "labels", "pr_close", "delete_remote_branch", "worktree_remove"]
+        )
         self.assertIn("Not worth it.", effects[0].args["body"])
         self.assertEqual(effects[1].args["remove"], ["puxirum", "puxirum:needs-human"])
 
@@ -393,10 +407,16 @@ class MachineTest(unittest.TestCase):
 
     def test_second_escalation_needs_second_feedback(self):
         self.write("feedback-1.md", "# Feedback 1\n\nx\n")
-        job = self.job("needs-human", round=4, round_limit=6, feedback=1, escalations=[
-            {"from": "review", "round": 3, "reason": "x", "at": "t"},
-            {"from": "build", "round": 4, "reason": "y", "at": "t"},
-        ])
+        job = self.job(
+            "needs-human",
+            round=4,
+            round_limit=6,
+            feedback=1,
+            escalations=[
+                {"from": "review", "round": 3, "reason": "x", "at": "t"},
+                {"from": "build", "round": 4, "reason": "y", "at": "t"},
+            ],
+        )
         self.refused(job, "build", "send feedback first")
         self.write("feedback-2.md", "# Feedback 2\n\ny\n")
         new, _ = self.go(job, "build")

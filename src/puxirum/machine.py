@@ -26,8 +26,17 @@ from puxirum.files import MalformedFile
 from puxirum.store import Effect, Job, now
 
 STAGES = (
-    "intake", "needs-info", "spec", "build", "gate", "review",
-    "approve", "merging", "needs-human", "merged", "rejected",
+    "intake",
+    "needs-info",
+    "spec",
+    "build",
+    "gate",
+    "review",
+    "approve",
+    "merging",
+    "needs-human",
+    "merged",
+    "rejected",
 )
 TRANSITIONS: dict[str, frozenset[str]] = {
     "intake": frozenset({"spec", "needs-info", "rejected", "needs-human"}),
@@ -210,8 +219,13 @@ def _from_build(m: _Move, target: str, facts: Facts) -> None:  # → gate
     m.effect("push", path=m.job.worktree, branch=m.job.branch)
     if not m.job.pr:
         spec_title = m.read("spec.md", "spec").text.split("\n", 1)[0][2:].strip()
-        m.effect("ensure_pr", branch=m.job.branch, base=m.cfg.base_branch, title=spec_title,
-                 body=f"Closes #{m.job.issue}\n\n" + "\n".join(f"- {s}" for s in f.summary))
+        m.effect(
+            "ensure_pr",
+            branch=m.job.branch,
+            base=m.cfg.base_branch,
+            title=spec_title,
+            body=f"Closes #{m.job.issue}\n\n" + "\n".join(f"- {s}" for s in f.summary),
+        )
 
 
 def _from_gate(m: _Move, target: str, facts: Facts) -> None:  # → review | build
@@ -226,8 +240,10 @@ def _from_gate(m: _Move, target: str, facts: Facts) -> None:  # → review | bui
         m.job.reviews = {r: "pending" for r in m.job.reviewers}
     else:
         require(result == "FAIL", "the gate passed")
-        require(m.job.round < m.job.round_limit,
-                f"round {m.job.round} of {m.job.round_limit} was the last; escalate instead")
+        require(
+            m.job.round < m.job.round_limit,
+            f"round {m.job.round} of {m.job.round_limit} was the last; escalate instead",
+        )
         m.next_round()
 
 
@@ -238,8 +254,10 @@ def _from_review(m: _Move, target: str, facts: Facts) -> None:  # → approve | 
         require(facts.head() == m.job.head, "HEAD moved since the gate; reviewers must not commit")
     else:
         require(bool(changes), "every review passed")
-        require(m.job.round < m.job.round_limit,
-                f"round {m.job.round} of {m.job.round_limit} was the last; escalate instead")
+        require(
+            m.job.round < m.job.round_limit,
+            f"round {m.job.round} of {m.job.round_limit} was the last; escalate instead",
+        )
         m.next_round()
 
 
@@ -251,8 +269,7 @@ def _from_approve(m: _Move, target: str, facts: Facts) -> None:  # → merging
 
 def _from_needs_human(m: _Move, target: str, facts: Facts) -> None:  # → intake | spec | build
     k = len(m.job.escalations)
-    require(k > m.job.feedback and (m.dir / f"feedback-{k}.md").is_file(),
-            "send feedback first: `puxirum feedback`")
+    require(k > m.job.feedback and (m.dir / f"feedback-{k}.md").is_file(), "send feedback first: `puxirum feedback`")
     want = resume_stage(m.job.escalations[-1]["from"])
     require(target == want, f"this escalation resumes at {want}, not {target}")
     require(facts.slot_available(), "no free slot")
@@ -311,8 +328,11 @@ def _to_needs_human(m: _Move, facts: Facts, reason: str | None) -> None:
         reason = _own_escalation(m, old)
     k = len(m.job.escalations) + 1
     m.job.escalations.append({"from": old, "round": m.job.round, "reason": reason, "at": now()})
-    m.effect("write_file", name=f"escalation-{k}.md",
-             text=f"ESCALATED-FROM: {old}\nROUND: {m.job.round}\n\n## Why\n{reason}\n")
+    m.effect(
+        "write_file",
+        name=f"escalation-{k}.md",
+        text=f"ESCALATED-FROM: {old}\nROUND: {m.job.round}\n\n## Why\n{reason}\n",
+    )
     if m.job.pr:
         m.effect("pr_ready", number=m.job.pr)
     m.comment(f"### Puxirum: needs a human\n\n{reason}")
@@ -334,8 +354,9 @@ def _own_escalation(m: _Move, old: str) -> str:
         changes = _changes(m)
         require(bool(changes), "every review passed")
         require(m.job.round >= m.job.round_limit, "rounds remain; go back to build")
-        return (f"Review rounds are exhausted. Reviewers still want changes in round {m.job.round}: "
-                f"{', '.join(changes)}.")
+        return (
+            f"Review rounds are exhausted. Reviewers still want changes in round {m.job.round}: {', '.join(changes)}."
+        )
     if old == "approve":
         f = m.read("decision.md", "decision")
         require(f.header["DECISION"] == "ESCALATE", "decision.md doesn't ESCALATE")

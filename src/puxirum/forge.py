@@ -189,6 +189,7 @@ def gh_runner(cwd: Path | None = None) -> Runner:
         if res.returncode != 0:
             raise ForgeError(f"`gh {' '.join(args)}` failed: {(res.stderr or res.stdout).strip()}")
         return res.stdout
+
     return run
 
 
@@ -215,17 +216,43 @@ class GhForge:
         return self._operator
 
     def _issue(self, d: dict) -> Issue:
-        return Issue(d["number"], d["title"], d.get("body") or "", (d.get("author") or {}).get("login", ""),
-                     d["url"], d.get("state", "OPEN"), [lb["name"] for lb in d.get("labels", [])],
-                     _comments(d.get("comments", [])))
+        return Issue(
+            d["number"],
+            d["title"],
+            d.get("body") or "",
+            (d.get("author") or {}).get("login", ""),
+            d["url"],
+            d.get("state", "OPEN"),
+            [lb["name"] for lb in d.get("labels", [])],
+            _comments(d.get("comments", [])),
+        )
 
     def _pr(self, d: dict) -> PullRequest:
-        return PullRequest(d["number"], d["url"], d["headRefName"], d["baseRefName"], d.get("title", ""),
-                           d.get("body") or "", d["state"], d.get("isDraft", False), _comments(d.get("comments", [])))
+        return PullRequest(
+            d["number"],
+            d["url"],
+            d["headRefName"],
+            d["baseRefName"],
+            d.get("title", ""),
+            d.get("body") or "",
+            d["state"],
+            d.get("isDraft", False),
+            _comments(d.get("comments", [])),
+        )
 
     def list_issues(self, label: str) -> list[Issue]:
-        rows = self._json("issue", "list", "--label", label, "--state", "open", "--limit", "500",
-                          "--json", "number,title,body,author,url,state,labels")
+        rows = self._json(
+            "issue",
+            "list",
+            "--label",
+            label,
+            "--state",
+            "open",
+            "--limit",
+            "500",
+            "--json",
+            "number,title,body,author,url,state,labels",
+        )
         return [self._issue(r) for r in rows]
 
     def issue(self, number: int) -> Issue:

@@ -111,9 +111,15 @@ def write_run(store: Store, run_id: str, started: str, only: int | None) -> dict
                     cost += ev["cost_usd"]
     ended = now()
     record = {
-        "id": run_id, "started": started, "ended": ended, "only": only,
+        "id": run_id,
+        "started": started,
+        "ended": ended,
+        "only": only,
         "wall_seconds": (parse_time(ended) - parse_time(started)).total_seconds(),
-        "agents": agents, "unpriced": unpriced, "cost_usd": round(cost, 6), "coordination_usd": 0.0,
+        "agents": agents,
+        "unpriced": unpriced,
+        "cost_usd": round(cost, 6),
+        "coordination_usd": 0.0,
         "jobs": sorted(jobs),
     }
     d = runs_dir(store)
@@ -142,9 +148,19 @@ def render(store: Store, cfg: Config) -> str:
     if not jobs:
         return "No jobs yet.\n"
     header = ("JOB", "ISSUE", "STAGE", "ROUND", "AGENTS", "COST", "ACTIVE", "WAITING")
-    rows = [header] + [(r.id, f"#{r.issue}", r.stage, str(r.round), str(r.agents),
-                        f"${r.cost_usd:.2f}" + ("*" if r.unpriced else ""),
-                        duration(r.active_seconds), duration(r.waiting_seconds)) for r in jobs]
+    rows = [header] + [
+        (
+            r.id,
+            f"#{r.issue}",
+            r.stage,
+            str(r.round),
+            str(r.agents),
+            f"${r.cost_usd:.2f}" + ("*" if r.unpriced else ""),
+            duration(r.active_seconds),
+            duration(r.waiting_seconds),
+        )
+        for r in jobs
+    ]
     widths = [max(len(row[i]) for row in rows) for i in range(len(header))]
     lines += ["  ".join(c.ljust(w) for c, w in zip(row, widths, strict=True)).rstrip() for row in rows]
 
@@ -157,24 +173,34 @@ def render(store: Store, cfg: Config) -> str:
             by_role[k] += v
         for k, v in r.by_model.items():
             by_model[k] += v
-    lines += ["", f"Agents:        ${total:.2f} in {sum(r.agents for r in jobs)} runs"
-              + (f" ({unpriced} unpriced, marked *)" if unpriced else "")]
+    lines += [
+        "",
+        f"Agents:        ${total:.2f} in {sum(r.agents for r in jobs)} runs"
+        + (f" ({unpriced} unpriced, marked *)" if unpriced else ""),
+    ]
     lines += ["Coordination:  $0.00 (deterministic; no model involved)"]
     lines += [f"Total:         ${total:.2f}"]
     if by_role:
-        lines += ["", "By role:  " + ", ".join(f"{k} ${v:.2f}"
-                                               for k, v in sorted(by_role.items(), key=lambda x: -x[1]))]
+        lines += [
+            "",
+            "By role:  " + ", ".join(f"{k} ${v:.2f}" for k, v in sorted(by_role.items(), key=lambda x: -x[1])),
+        ]
         lines += ["By model: " + ", ".join(f"{k} ${v:.2f}" for k, v in sorted(by_model.items(), key=lambda x: -x[1]))]
     all_runs = runs(store)
     if all_runs:
         wall = sum(r["wall_seconds"] for r in all_runs)
         lines += ["", f"Runs: {len(all_runs)}, wall-clock {duration(wall)}"]
     if cfg.baseline_usd is not None:
-        lines += ["", f"Baseline ({cfg.baseline_label}): ${cfg.baseline_usd:.2f}"
-                  + (f", {duration(cfg.baseline_minutes * 60)}" if cfg.baseline_minutes else "")]
+        lines += [
+            "",
+            f"Baseline ({cfg.baseline_label}): ${cfg.baseline_usd:.2f}"
+            + (f", {duration(cfg.baseline_minutes * 60)}" if cfg.baseline_minutes else ""),
+        ]
         ratio = total / cfg.baseline_usd if cfg.baseline_usd else 0
-        lines += [f"This project:  ${total:.2f} ({ratio:.0%} of the baseline)"
-                  + (f", {duration(sum(r['wall_seconds'] for r in all_runs))} of runs" if all_runs else "")]
+        lines += [
+            f"This project:  ${total:.2f} ({ratio:.0%} of the baseline)"
+            + (f", {duration(sum(r['wall_seconds'] for r in all_runs))} of runs" if all_runs else "")
+        ]
     return "\n".join(lines) + "\n"
 
 

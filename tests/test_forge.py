@@ -47,9 +47,18 @@ class GhForgeTest(unittest.TestCase):
         return ""
 
     def issue_json(self, labels):
-        return json.dumps({"number": 3, "title": "T", "body": None, "author": {"login": "ana"}, "url": "u",
-                           "state": "OPEN", "labels": [{"name": n} for n in labels],
-                           "comments": [{"author": {"login": "bob"}, "body": "hi", "createdAt": "2026-01-01T00:00:00Z"}]})
+        return json.dumps(
+            {
+                "number": 3,
+                "title": "T",
+                "body": None,
+                "author": {"login": "ana"},
+                "url": "u",
+                "state": "OPEN",
+                "labels": [{"name": n} for n in labels],
+                "comments": [{"author": {"login": "bob"}, "body": "hi", "createdAt": "2026-01-01T00:00:00Z"}],
+            }
+        )
 
     def test_issue_parsing(self):
         self.replies["issue view 3"] = self.issue_json(["puxirum"])
@@ -67,8 +76,17 @@ class GhForgeTest(unittest.TestCase):
         self.assertEqual([c[:2] for c in self.calls], [["issue", "view"]], "nothing to change, no edit")
 
     def test_create_pr_reads_back_the_single_open_pr(self):
-        pr = {"number": 9, "url": "u", "headRefName": "puxirum/001-x", "baseRefName": "main", "title": "t",
-              "body": "b", "state": "OPEN", "isDraft": True, "comments": []}
+        pr = {
+            "number": 9,
+            "url": "u",
+            "headRefName": "puxirum/001-x",
+            "baseRefName": "main",
+            "title": "t",
+            "body": "b",
+            "state": "OPEN",
+            "isDraft": True,
+            "comments": [],
+        }
         self.replies["pr list"] = json.dumps([pr])
         got = GhForge(run=self.run_gh).create_pr("puxirum/001-x", "main", "t", "b", draft=True)
         self.assertEqual(got.number, 9)

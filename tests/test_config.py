@@ -13,20 +13,34 @@ class ParseTest(unittest.TestCase):
     def test_reads_every_table(self):
         c = parse(
             {
-                "queue": {"label": "q", "needs_info_label": "q:i", "needs_human_label": "q:h", "concurrency": 3, "max_rounds": 5},
+                "queue": {
+                    "label": "q",
+                    "needs_info_label": "q:i",
+                    "needs_human_label": "q:h",
+                    "concurrency": 3,
+                    "max_rounds": 5,
+                },
                 "git": {"base": "trunk", "merge_method": "merge", "branch_prefix": "bot/", "worktrees_dir": "wt"},
                 "gate": {"checks": "ci/checks.sh", "timeout_s": 60, "protected": ["ci/*"]},
                 "ports": {"base": 6000, "step": 5},
                 "models": {"builder": "opus"},
                 "routing": {
-                    "risk": {"low": {"code": "haiku"}, "medium": {"code": "sonnet"}, "high": {"code": "opus", "security": "opus"}},
+                    "risk": {
+                        "low": {"code": "haiku"},
+                        "medium": {"code": "sonnet"},
+                        "high": {"code": "opus", "security": "opus"},
+                    },
                     "surfaces": {"ui": {"ux": "sonnet"}},
                 },
-                "prices": {"m": {"input": 1, "output": 2, "cache_write_5m": 1.25, "cache_write_1h": 2, "cache_read": 0.1}},
+                "prices": {
+                    "m": {"input": 1, "output": 2, "cache_write_5m": 1.25, "cache_write_1h": 2, "cache_read": 0.1}
+                },
             }
         )
         self.assertEqual((c.queue_label, c.concurrency, c.max_rounds), ("q", 3, 5))
-        self.assertEqual((c.base_branch, c.merge_method, c.branch_prefix, c.worktrees_dir), ("trunk", "merge", "bot/", "wt"))
+        self.assertEqual(
+            (c.base_branch, c.merge_method, c.branch_prefix, c.worktrees_dir), ("trunk", "merge", "bot/", "wt")
+        )
         self.assertEqual((c.checks, c.gate_timeout_s, c.protected), ("ci/checks.sh", 60, ("ci/*",)))
         self.assertEqual((c.ports_base, c.ports_step), (6000, 5))
         self.assertEqual(c.models["builder"], "opus")
@@ -102,7 +116,7 @@ class LoadTest(unittest.TestCase):
     def test_loads_file(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / ".puxirum").mkdir()
-            (Path(d) / ".puxirum" / "config.toml").write_text('[queue]\nconcurrency = 2\n')
+            (Path(d) / ".puxirum" / "config.toml").write_text("[queue]\nconcurrency = 2\n")
             self.assertEqual(config.load(Path(d)).concurrency, 2)
 
 

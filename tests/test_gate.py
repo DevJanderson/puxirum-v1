@@ -13,13 +13,17 @@ PASSING = "#!/usr/bin/env bash\nset -euo pipefail\necho checking\n"
 class GateTest(unittest.TestCase):
     def setUp(self):
         self.r = Repos()
-        self.r.commit(self.r.main, {
-            ".puxirum/checks.sh": PASSING,
-            ".puxirum/config.toml": "",
-            ".gitignore": ".worktrees/\nout/\n",
-            "src/app.txt": "v1\n",
-            "docs/my notes.txt": "x\n",
-        }, "init")
+        self.r.commit(
+            self.r.main,
+            {
+                ".puxirum/checks.sh": PASSING,
+                ".puxirum/config.toml": "",
+                ".gitignore": ".worktrees/\nout/\n",
+                "src/app.txt": "v1\n",
+                "docs/my notes.txt": "x\n",
+            },
+            "init",
+        )
         self.r.push_main()
         self.cfg = Config()
         self.wt = self.r.worktree("puxirum/001-x")

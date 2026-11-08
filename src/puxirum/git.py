@@ -26,9 +26,13 @@ class Git:
 
     def run(self, *args: str, cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
         # No hooks: a job's branch must never get code run by the core's own git (push, merge).
-        res = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", *args], cwd=cwd or self.repo,
-                             capture_output=True, text=True,
-                             env={**os.environ, "LC_ALL": "C"})  # untranslated output, same on every machine
+        res = subprocess.run(
+            ["git", "-c", "core.hooksPath=/dev/null", *args],
+            cwd=cwd or self.repo,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "LC_ALL": "C"},
+        )  # untranslated output, same on every machine
         if check and res.returncode != 0:
             raise GitError(f"`git {' '.join(args)}` failed: {(res.stderr or res.stdout).strip()}")
         return res

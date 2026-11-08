@@ -29,8 +29,9 @@ def default_engine(cwd: Path) -> Engine:
     repo = repo_root(cwd)
     cfg = config.load(repo)
     world = World(repo, cfg, Store(repo), GhForge(cwd=repo))
-    runner = ClaudeRunner(prompt_for=Prompts(cfg, repo), command=cfg.agent_command,
-                          timeout_s=cfg.agent_timeout_s, budget_usd=cfg.budgets)
+    runner = ClaudeRunner(
+        prompt_for=Prompts(cfg, repo), command=cfg.agent_command, timeout_s=cfg.agent_timeout_s, budget_usd=cfg.budgets
+    )
     return Engine(world, runner, log=lambda msg: print(msg, file=sys.stderr))
 
 
@@ -47,16 +48,30 @@ def _status(engine: Engine, out) -> None:
     table = [("ACTION", "ISSUE", "JOB", "STAGE", "ROUND", "PR", "COST", "NOTE")]
     for r in rows:
         j = jobs.get(r.issue)
-        table.append((r.action, f"#{r.issue}", r.job_id or "-", r.stage or "-", str(r.round or "-"),
-                      f"#{r.pr}" if r.pr else "-", f"${j.cost_usd:.2f}" if j else "-", r.note))
+        table.append(
+            (
+                r.action,
+                f"#{r.issue}",
+                r.job_id or "-",
+                r.stage or "-",
+                str(r.round or "-"),
+                f"#{r.pr}" if r.pr else "-",
+                f"${j.cost_usd:.2f}" if j else "-",
+                r.note,
+            )
+        )
     widths = [max(len(row[i]) for row in table) for i in range(len(table[0]) - 1)]
     for row in table:
         print("  ".join(c.ljust(w) for c, w in zip(row, widths, strict=False)) + "  " + row[-1], file=out)
 
 
-def main(argv: list[str] | None = None, make_engine: Callable[[Path], Engine] = default_engine,
-         make_forge: Callable[[Path], Forge] = lambda repo: GhForge(cwd=repo),
-         cwd: Path | None = None, out=None) -> int:
+def main(
+    argv: list[str] | None = None,
+    make_engine: Callable[[Path], Engine] = default_engine,
+    make_forge: Callable[[Path], Forge] = lambda repo: GhForge(cwd=repo),
+    cwd: Path | None = None,
+    out=None,
+) -> int:
     out = out or sys.stdout
     cwd = cwd or Path.cwd()
     parser = argparse.ArgumentParser(prog="puxirum", description="A deterministic software factory.")
@@ -93,8 +108,11 @@ def main(argv: list[str] | None = None, make_engine: Callable[[Path], Engine] = 
         if args.command == "run":
             summary = engine.run(only=args.issue)
             _status(engine, out)
-            print(f"\nThis run: {summary['agents']} agent runs, ${summary['cost_usd']:.2f}, "
-                  f"{report.duration(summary['wall_seconds'])}", file=out)
+            print(
+                f"\nThis run: {summary['agents']} agent runs, ${summary['cost_usd']:.2f}, "
+                f"{report.duration(summary['wall_seconds'])}",
+                file=out,
+            )
         elif args.command == "status":
             _status(engine, out)
         elif args.command == "report":

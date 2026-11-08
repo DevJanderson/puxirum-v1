@@ -31,7 +31,9 @@ class StopChecksTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("bug found", msg)
         self.assertIn("STATUS: BLOCKED", msg)
-        self.assertEqual(hook.stop_checks({"stop_hook_active": True}, self.env), (0, ""), "the second stop goes through")
+        self.assertEqual(
+            hook.stop_checks({"stop_hook_active": True}, self.env), (0, ""), "the second stop goes through"
+        )
 
     def test_blocks_a_dirty_worktree(self):
         (self.r.main / "scratch.txt").write_text("x")
@@ -45,17 +47,29 @@ class StopChecksTest(unittest.TestCase):
     def test_command_line(self):
         self.r.commit(self.r.main, {"bug.txt": "x"}, "bug")
         src = str(Path(hook.__file__).resolve().parents[1])
-        res = subprocess.run([sys.executable, "-m", "puxirum.hook", "stop-checks"], input=json.dumps({}),
-                             capture_output=True, text=True, env={**os.environ, **self.env, "PYTHONPATH": src})
+        res = subprocess.run(
+            [sys.executable, "-m", "puxirum.hook", "stop-checks"],
+            input=json.dumps({}),
+            capture_output=True,
+            text=True,
+            env={**os.environ, **self.env, "PYTHONPATH": src},
+        )
         self.assertEqual(res.returncode, 2)
         self.assertIn("bug found", res.stderr)
 
 
 class BuilderSettingsTest(unittest.TestCase):
     def task(self, role, tmp):
-        return AgentTask(role=role, lens=None, job_id="001-x", model="sonnet", cwd=tmp, job_dir=tmp / "job",
-                         output=tmp / "job" / "build.md", vars={"checks": "/repo/.puxirum/checks.sh",
-                                                                 "checks_timeout_s": 600})
+        return AgentTask(
+            role=role,
+            lens=None,
+            job_id="001-x",
+            model="sonnet",
+            cwd=tmp,
+            job_dir=tmp / "job",
+            output=tmp / "job" / "build.md",
+            vars={"checks": "/repo/.puxirum/checks.sh", "checks_timeout_s": 600},
+        )
 
     def test_only_the_builder_gets_the_stop_hook(self):
         tmp = Path(self.id().replace(".", "_"))
@@ -67,6 +81,7 @@ class BuilderSettingsTest(unittest.TestCase):
 
     def test_builder_env_points_the_hook_at_the_worktree(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as d:
             env = agent_env(self.task("builder", Path(d)), base={"PATH": "/usr/bin"})
         self.assertEqual(env["PUXIRUM_CHECKS"], "/repo/.puxirum/checks.sh")
