@@ -1,4 +1,5 @@
 import io
+import json
 import unittest
 
 from puxirum import bootstrap, cli
@@ -30,6 +31,26 @@ class InitTest(unittest.TestCase):
         skill = (self.repo / ".claude/skills/puxirum/SKILL.md").read_text()
         self.assertTrue(skill.startswith("---\nname: puxirum\ndescription: "))
         self.assertEqual(skill, bootstrap.skill_text())
+
+    def test_allows_the_skill_commands_and_keeps_the_rest(self):
+        settings = self.repo / ".claude/settings.json"
+        settings.parent.mkdir()
+        settings.write_text('{"model": "opus", "permissions": {"allow": ["Bash(npm test)"], "deny": ["Read(.env)"]}}')
+        bootstrap.init(self.repo, None, self.lines.append)
+        bootstrap.init(self.repo, None, self.lines.append)
+        data = json.loads(settings.read_text())
+        self.assertEqual(data["model"], "opus")
+        self.assertEqual(data["permissions"]["deny"], ["Read(.env)"])
+        self.assertEqual(data["permissions"]["allow"], ["Bash(npm test)", *bootstrap.ALLOW], "added once")
+        self.assertNotIn("Bash(puxirum feedback:*)", data["permissions"]["allow"], "decisions still ask")
+
+    def test_settings_it_cannot_read_are_kept(self):
+        settings = self.repo / ".claude/settings.json"
+        settings.parent.mkdir()
+        settings.write_text("{ not json")
+        bootstrap.init(self.repo, None, self.lines.append)
+        self.assertEqual(settings.read_text(), "{ not json")
+        self.assertTrue(any("allow these by hand" in line for line in self.lines))
 
     def test_the_skill_doctor_check(self):
         def skill_check():

@@ -372,7 +372,7 @@ Uma execução de agente só conta se ele sair com 0 **e** reescrever o arquivo 
 
 | Comando | Faz |
 |---|---|
-| `puxirum init` | Instala o Puxirum num projeto (pastas, configuração, labels, skill `/puxirum`, verificação) |
+| `puxirum init` | Instala o Puxirum num projeto (pastas, configuração, labels, skill `/puxirum` e as permissões dela, verificação) |
 | `puxirum run [N]` | Processa a fila inteira, ou só a issue N; retoma o que estiver em andamento |
 | `puxirum status` | Mostra os jobs, as etapas e o que espera pela pessoa |
 | `puxirum workbench` | Monta a bancada do tuios ao lado do pane atual, sem rodar a fila |

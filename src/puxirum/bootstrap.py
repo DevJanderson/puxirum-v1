@@ -7,6 +7,7 @@ to fix.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -102,6 +103,18 @@ IGNORES = (".puxirum/state/", ".worktrees/")
 SKILL = ".claude/skills/puxirum/SKILL.md"
 
 
+SETTINGS = ".claude/settings.json"
+# What the /puxirum skill runs without asking each time: reading, and starting a run. Feedback, rejection and
+# anything on GitHub still ask, since they act on the person's behalf.
+ALLOW = (
+    "Bash(puxirum status)",
+    "Bash(puxirum report:*)",
+    "Bash(puxirum run:*)",
+    "Bash(puxirum workbench)",
+    "Bash(puxirum doctor)",
+)
+
+
 def skill_text() -> str:
     """The /puxirum skill this version of Puxirum ships."""
     return (Path(__file__).parent / "skills" / "puxirum" / "SKILL.md").read_text(encoding="utf-8")
@@ -123,6 +136,7 @@ def init(repo: Path, forge: Forge | None, out: Callable[[str], None]) -> None:
         (d / "checks.sh").chmod(0o755)
     (repo / SKILL).parent.mkdir(parents=True, exist_ok=True)
     _create(repo, SKILL, skill_text(), out)
+    _allow(repo, out)
 
     gitignore = repo / ".gitignore"
     text = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
@@ -142,6 +156,26 @@ def init(repo: Path, forge: Forge | None, out: Callable[[str], None]) -> None:
                 forge.create_label(name, color, description)
                 out(f"created label {name}")
     out("next: edit .puxirum/checks.sh, commit .puxirum/, .claude/ and .gitignore, then run `puxirum doctor`")
+
+
+def _allow(repo: Path, out: Callable[[str], None]) -> None:
+    """Add the skill's commands to the project's Claude Code permissions, keeping everything else there."""
+    path = repo / SETTINGS
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, ValueError):
+        data = None
+    perms = data.setdefault("permissions", {}) if isinstance(data, dict) else None
+    allow = perms.setdefault("allow", []) if isinstance(perms, dict) else None
+    if not isinstance(allow, list):
+        out(f"kept {SETTINGS} (not the shape expected); allow these by hand: {', '.join(ALLOW)}")
+        return
+    missing = [rule for rule in ALLOW if rule not in allow]
+    if not missing:
+        return
+    allow.extend(missing)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    out(f"allowed the /puxirum skill's commands in {SETTINGS}")
 
 
 def _create(repo: Path, rel: str, text: str, out: Callable[[str], None]) -> bool:
@@ -239,7 +273,7 @@ def doctor(repo: Path, forge: Forge, which: Callable[[str], str | None] = shutil
         except Exception as e:  # noqa: BLE001 - any gh failure is a doctor finding
             add("fail", "gh can reach GitHub", str(e).splitlines()[0] if str(e) else type(e).__name__)
 
-    for tool, phase in (("claude", "Phase 2 runner"), ("tuios", "Phase 3 workbench")):
+    for tool, phase in (("claude", "agents"), ("tuios", "workbench (optional)")):
         if which(tool):
             add("ok", f"{tool} found")
         else:
