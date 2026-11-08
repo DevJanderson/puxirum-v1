@@ -113,6 +113,16 @@ class PromptsTest(unittest.TestCase):
         spec = self.prompts(self.task("spec", surfaces=[]))
         self.assertIn("Write `None.` under `## Edge cases`", spec)
 
+    def test_each_role_hears_what_its_shell_can_run(self):
+        reviewer = self.prompts(self.task("reviewer", "ux"))
+        self.assertIn("Your shell runs only these commands: `git log`", reviewer)
+        self.assertIn("`agent-browser`", reviewer)
+        self.assertIn("no shell variables", reviewer)
+        self.assertIn("never with `cat`", reviewer)
+        self.assertNotIn("`cd`,", reviewer, "cd is allowed but not worth listing")
+        self.assertIn("You have no shell", self.prompts(self.task("intake")))
+        self.assertNotIn("Your shell runs only", self.prompts(self.task("builder")))
+
     def test_app_url_goes_to_builder_and_ui_reviewers(self):
         text = self.prompts(self.task("reviewer", "ui", app_url="http://127.0.0.1:5232"))
         self.assertIn("running the app for this job at http://127.0.0.1:5232", text)

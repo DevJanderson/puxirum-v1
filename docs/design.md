@@ -478,7 +478,8 @@ Na Fase 4, o Puxirum roda no `todo-factory` com **issues equivalentes** às do p
 2. **Resultado:** as issues têm o mesmo desfecho esperado (entregar, rejeitar, pedir informação, escalar).
 3. **Custo:** o total fica **abaixo de US$ 4,27**, a metade da linha de base de US$ 8,53, com a coordenação perto de zero.
 4. **Tempo:** um job simples leva no máximo o mesmo que no piloto (~5 min).
-5. **Visibilidade:** todo agente e todo servidor aparece como janela no tuios, e cada etapa aparece na nota e no painel.
+5. **Visibilidade:** todo agente aparece no feed da bancada, todo servidor tem log no job, e cada etapa aparece na
+   nota e no painel (layout da seção 11.3).
 6. **Robustez:** matar o processo no meio de um job e rodar de novo retoma sem perder nada.
 
 ## 19. Fases, riscos e questões abertas

@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from puxirum import orphans
 from puxirum.claude import POLICIES, ClaudeRunner, agent_env, events, final_result, settings_for
 from puxirum.runner import AgentTask
 
@@ -115,6 +116,7 @@ class ClaudeRunnerTest(unittest.TestCase):
         self.assertIn("Bash(agent-browser:*)", rules["allow"])
         self.assertIn(f"Edit(/{self.job_dir}/round-1/evidence/**)", rules["allow"])
         self.assertNotIn("Bash", rules["allow"], "no blanket shell")
+        self.assertIn("Bash(cd:*)", rules["allow"], "the prompts start commands with `cd <dir> && `")
         self.assertNotIn("Edit", POLICIES["reviewer"].tools)
 
     def sandboxed(self, **vars_):
@@ -230,6 +232,19 @@ class ClaudeRunnerTest(unittest.TestCase):
         time.sleep(0.2)
         with self.assertRaises(ProcessLookupError):
             os.kill(int(pidfile.read_text()), 0)
+
+    def test_the_pid_file_lives_only_while_the_agent_runs(self):
+        seen = {}
+        real = orphans.record
+
+        def spy(path, pid, program):
+            seen["path"], seen["program"] = path, program
+            real(path, pid, program)
+
+        with mock.patch.object(orphans, "record", spy):
+            self.run_fake()
+        self.assertEqual(seen["path"].name, "builder-r1-a1.pid")
+        self.assertFalse(seen["path"].exists())
 
     def test_logs_are_per_role_round_and_attempt(self):
         self.run_fake(self.task("reviewer", "ux", "round-2/review-ux.md", round=2, attempt=2))

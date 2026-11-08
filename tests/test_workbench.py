@@ -88,6 +88,15 @@ class LayoutTest(Base):
         b.refresh()
         self.assertEqual(len(self.verbs("tml-open")), 2, "a closed dashboard comes back on the next refresh")
 
+    def test_a_dashboard_another_pane_opened_is_replaced(self):
+        self.bench().open()
+        old = dict(self.d.windows)
+        self.d.fail["tml-replace"] = "not_owner"
+        self.bench().open()
+        self.assertEqual(len(self.verbs("tml-open")), 2)
+        self.assertEqual(len([w for w in self.d.windows if w in old]), 1, "only the core pane is left of the old ones")
+        self.assertEqual(len(self.d.windows), 3)
+
     def test_panes_from_another_session_are_not_reused(self):
         self.bench().open()
         other = Workbench(Tuios("other", self.core, self.d), self.store, self.cfg)

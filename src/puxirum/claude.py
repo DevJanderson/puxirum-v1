@@ -31,13 +31,15 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from puxirum import orphans
 from puxirum.runner import AgentResult, AgentTask
 
 KILL_GRACE_S = 5
 STRIPPED_ENV = ("SSH_AUTH_SOCK", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GIT_ASKPASS", "SSH_ASKPASS")
 STRIPPED_PREFIXES = ("TUIOS_",)
 
-READ_ONLY_GIT = ("git log:*", "git diff:*", "git show:*", "git status:*", "git branch:*", "git rev-parse:*")
+# `cd` changes nothing, and the prompts start shell commands with `cd <dir> && `.
+READ_ONLY_GIT = ("cd:*", "git log:*", "git diff:*", "git show:*", "git status:*", "git branch:*", "git rev-parse:*")
 BUILDER_DENY = (
     "git push:*",
     "git remote:*",
@@ -241,19 +243,20 @@ class ClaudeRunner:
                 start_new_session=True,
             )
             assert proc.stdin is not None  # stdin=PIPE
-            try:
-                proc.stdin.write(prompt)
-                proc.stdin.close()
-            except BrokenPipeError:
-                pass
-            try:
-                code = proc.wait(timeout=self.timeout_s)
-            except subprocess.TimeoutExpired:
-                _kill_group(proc)
-                err.write(f"\npuxirum: stopped after the {self.timeout_s:.0f}s timeout\n")
-                code = 124
-            else:
-                _kill_group(proc, grace=0)  # nothing the agent started (a dev server, a watcher) outlives it
+            with orphans.tracked(logs / f"{stem}.pid", proc.pid, self.command[0]):
+                try:
+                    proc.stdin.write(prompt)
+                    proc.stdin.close()
+                except BrokenPipeError:
+                    pass
+                try:
+                    code = proc.wait(timeout=self.timeout_s)
+                except subprocess.TimeoutExpired:
+                    _kill_group(proc)
+                    err.write(f"\npuxirum: stopped after the {self.timeout_s:.0f}s timeout\n")
+                    code = 124
+                else:
+                    _kill_group(proc, grace=0)  # nothing the agent started (a dev server, a watcher) outlives it
         seconds = time.monotonic() - start
         result = final_result(out_path)
         cost = result.get("total_cost_usd") if isinstance(result.get("total_cost_usd"), (int, float)) else None

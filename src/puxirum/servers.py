@@ -17,6 +17,8 @@ import time
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 
+from puxirum import orphans
+
 KILL_GRACE_S = 5
 POLL_S = 0.1
 
@@ -42,6 +44,7 @@ def running(
     port: int,
     log_path: Path,
     *,
+    pid_path: Path | None = None,
     setup: Sequence[str] = (),
     ready_timeout_s: float = 60,
     setup_timeout_s: float = 900,
@@ -82,6 +85,8 @@ def running(
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
+        if pid_path is not None:
+            orphans.record(pid_path, proc.pid, argv[0])
         try:
             deadline = time.monotonic() + ready_timeout_s
             while not listening(port):
@@ -96,6 +101,8 @@ def running(
             yield f"http://localhost:{port}"
         finally:
             _stop(proc)
+            if pid_path is not None:
+                orphans.forget(pid_path)
 
 
 def _stop(proc: subprocess.Popen) -> None:

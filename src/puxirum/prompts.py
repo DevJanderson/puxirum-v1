@@ -18,6 +18,7 @@ from importlib import resources
 from pathlib import Path
 
 from puxirum import files
+from puxirum.claude import POLICIES
 from puxirum.config import Config
 from puxirum.files import MalformedFile
 from puxirum.runner import AgentTask
@@ -97,6 +98,7 @@ class Prompts:
             "role_title": ROLE_TITLES.get(task.role) or f"{LENS_TITLES.get(task.lens or '', task.lens)} reviewer",
             "lens_title": LENS_TITLES.get(task.lens or "", task.lens or ""),
             "write_scope": self._write_scope(task),
+            "shell_note": self._shell_note(task),
             "retry_note": self._retry_note(v.get("retry")),
             "previous_intakes": self._previous_intakes(d),
             "edge_cases_rule": self._edge_cases_rule(surfaces),
@@ -113,6 +115,21 @@ class Prompts:
             evidence = task.job_dir / f"round-{task.vars.get('round')}" / "evidence"
             return f"You may also save screenshots in `{evidence}`."
         return "Nothing else."
+
+    @staticmethod
+    def _shell_note(task: AgentTask) -> str:
+        """For a role whose shell only runs listed commands: say which, and how to call them."""
+        policy = POLICIES[task.role]
+        if "Bash" not in policy.tools:
+            return "- You have no shell. Read files with the Read, Grep and Glob tools."
+        if "*" in policy.bash_allow:
+            return ""
+        allowed = ", ".join(f"`{b.removesuffix(':*').removesuffix('*')}`" for b in policy.bash_allow if b != "cd:*")
+        return (
+            f"- Your shell runs only these commands: {allowed}. Anything else is refused. Run one command per "
+            "call, optionally after `cd <dir> && `: no shell variables, no `;`, and no pipes into other "
+            "programs. Read files with the Read, Grep and Glob tools, never with `cat`, `sed` or `head`."
+        )
 
     @staticmethod
     def _retry_note(retry: str | None) -> str:
@@ -198,9 +215,9 @@ class Prompts:
         if url:
             return (
                 f"The coordinator is running the app for this job at {url}. Look at it with the `agent-browser` "
-                f"CLI (run `agent-browser skills get core` first), passing `--session {session}` on every call, "
-                f"and run `agent-browser --session {session} close` when you're done. Don't start another "
-                "server, and don't sign in or submit real data."
+                f"CLI (run `agent-browser skills get core` first), writing `--session {session}` out in full "
+                f"on every call, and run `agent-browser --session {session} close` when you're done. "
+                "Don't start another server, and don't sign in or submit real data."
             )
         return (
             "No app is running for this job. If a criterion can only be seen on a page, say in your file that "

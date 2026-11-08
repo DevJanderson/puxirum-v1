@@ -181,8 +181,15 @@ class Workbench:
             self.log(f"workbench: {len(others)} other pane(s) share this workspace; the layout may differ")
         surface = self.ids.get("surface")
         if surface and t.surface_alive(surface):
-            t.replace(surface, dashboard())
-        else:
+            try:
+                t.replace(surface, dashboard())
+            except TuiosError:
+                # Only the pane that opened a surface may change it: this is an earlier run's dashboard.
+                for old in (self.ids.get("panel"), self.ids.get("feed")):
+                    if old:
+                        t.close_window(old)
+                surface = None
+        if not (surface and t.surface_alive(surface)):
             surface, self.ids["panel"] = t.open_surface(dashboard(), workspace, "Painel")
             self.ids["surface"] = surface
             self.ids.pop("feed", None)  # the feed goes under the new dashboard

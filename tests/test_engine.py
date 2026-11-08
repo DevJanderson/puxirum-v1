@@ -1,5 +1,7 @@
+import subprocess
 import unittest
 
+from puxirum import orphans
 from puxirum.config import parse
 from puxirum.engine import Engine
 from puxirum.forge import FakeForge, ForgeError
@@ -112,6 +114,33 @@ class EngineTest(EngineBase):
         self.engine(agents.happy(intake=agents.intake(risk="high", surfaces="ui, security"))).run()
         job = self.assertMerged(n)
         self.assertEqual(set(job.reviews), {"code", "ux", "ui", "security"})
+
+    def test_a_run_first_stops_what_a_crashed_run_left_running(self):
+        n = self.issue()
+        self.engine(agents.happy(intake=agents.intake("NEEDS-INFO"))).run()
+        job = self.job(n)
+        left = subprocess.Popen(["sleep", "60"], start_new_session=True)
+        self.addCleanup(left.wait)
+        orphans.record(self.store.job_dir(job.id) / "logs" / "builder-r1-a1.pid", left.pid, "sleep")
+        logs = []
+        e = self.engine(agents.happy())
+        e.log = logs.append
+        e.run()
+        self.assertEqual(left.wait(timeout=10), -15, "stopped with SIGTERM")
+        self.assertTrue(any("left running by a run that crashed" in m for m in logs))
+
+    def test_reviewers_find_their_evidence_folder_already_there(self):
+        """A reviewer may not create folders, so the core makes the one it saves screenshots in."""
+        seen = []
+
+        def review(task):
+            seen.append((task.output.parent / "evidence").is_dir())
+            agents.reviewer()(task)
+
+        n = self.issue()
+        self.engine(agents.happy(reviewer=review)).run()
+        self.assertMerged(n)
+        self.assertEqual(seen, [True])
 
     # ---- intake outcomes --------------------------------------------------------------------------
 

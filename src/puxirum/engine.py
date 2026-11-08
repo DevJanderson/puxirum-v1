@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
-from puxirum import files, gate, report, servers
+from puxirum import files, gate, orphans, report, servers
 from puxirum.files import MalformedFile
 from puxirum.forge import ForgeError
 from puxirum.git import GitError
@@ -134,6 +134,8 @@ class Engine:
         started = now()
         self.run_id = f"{started.replace('-', '').replace(':', '')}-{os.getpid()}"
         try:
+            for left in orphans.reap(self.store.jobs_dir.glob("*/logs/*.pid")):
+                self.log(f"stopped {left}, left running by a run that crashed")
             self._ticks(only, max_ticks)
         finally:
             summary = report.write_run(self.store, self.run_id, started, only)
@@ -464,6 +466,9 @@ class Engine:
         d = self.store.job_dir(job.id)
         out = d / output
         out.parent.mkdir(parents=True, exist_ok=True)
+        if role == "reviewer":
+            # The reviewer may only write its review and screenshots, so the folder must already exist.
+            (self._round_dir(job) / "evidence").mkdir(parents=True, exist_ok=True)
         before = _fingerprint(out)
         self._update(job.id, lambda j: j.attempts.__setitem__(key, attempts + 1))
         task = AgentTask(
@@ -530,6 +535,7 @@ class Engine:
             task.cwd,
             port,
             log,
+            pid_path=log.with_suffix(".pid"),
             setup=self.cfg.app_setup,
             ready_timeout_s=self.cfg.app_ready_timeout_s,
             env=self._env(job),
