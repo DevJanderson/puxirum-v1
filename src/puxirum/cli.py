@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from puxirum import __version__, bootstrap, config, report
 from puxirum.claude import ClaudeRunner
@@ -51,7 +51,7 @@ def _status(engine: Engine, out) -> None:
                       f"#{r.pr}" if r.pr else "-", f"${j.cost_usd:.2f}" if j else "-", r.note))
     widths = [max(len(row[i]) for row in table) for i in range(len(table[0]) - 1)]
     for row in table:
-        print("  ".join(c.ljust(w) for c, w in zip(row, widths)) + "  " + row[-1], file=out)
+        print("  ".join(c.ljust(w) for c, w in zip(row, widths, strict=False)) + "  " + row[-1], file=out)
 
 
 def main(argv: list[str] | None = None, make_engine: Callable[[Path], Engine] = default_engine,

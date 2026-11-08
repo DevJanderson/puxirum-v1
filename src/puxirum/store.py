@@ -19,10 +19,11 @@ import json
 import os
 import re
 import unicodedata
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field, fields
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 STATE_DIR = Path(".puxirum") / "state"
 SCHEMA = 1
@@ -34,7 +35,7 @@ class StoreError(Exception):
 
 
 def now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dataclass

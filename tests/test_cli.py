@@ -9,7 +9,6 @@ from puxirum.forge import FakeForge
 from puxirum.runner import FakeRunner
 from puxirum.store import Store
 from puxirum.world import World
-
 from tests import agents
 from tests.gitrepo import Repos
 

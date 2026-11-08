@@ -5,7 +5,6 @@ import unittest
 from puxirum import files, gate
 from puxirum.config import Config, parse
 from puxirum.gate import GateError
-
 from tests.gitrepo import Repos, git
 
 PASSING = "#!/usr/bin/env bash\nset -euo pipefail\necho checking\n"

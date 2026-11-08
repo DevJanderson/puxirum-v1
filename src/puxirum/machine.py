@@ -334,7 +334,8 @@ def _own_escalation(m: _Move, old: str) -> str:
         changes = _changes(m)
         require(bool(changes), "every review passed")
         require(m.job.round >= m.job.round_limit, "rounds remain; go back to build")
-        return f"Review rounds are exhausted. Reviewers still want changes in round {m.job.round}: {', '.join(changes)}."
+        return (f"Review rounds are exhausted. Reviewers still want changes in round {m.job.round}: "
+                f"{', '.join(changes)}.")
     if old == "approve":
         f = m.read("decision.md", "decision")
         require(f.header["DECISION"] == "ESCALATE", "decision.md doesn't ESCALATE")

@@ -25,9 +25,9 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from puxirum.runner import AgentResult, AgentTask
 
@@ -187,6 +187,7 @@ class ClaudeRunner:
         with open(out_path, "w", encoding="utf-8") as out, open(err_path, "w", encoding="utf-8") as err:
             proc = subprocess.Popen(self.argv(task), cwd=task.cwd, env=agent_env(task), stdin=subprocess.PIPE,
                                     stdout=out, stderr=err, text=True, start_new_session=True)
+            assert proc.stdin is not None  # stdin=PIPE
             try:
                 proc.stdin.write(prompt)
                 proc.stdin.close()

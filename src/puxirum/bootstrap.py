@@ -10,9 +10,9 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from puxirum import config
 from puxirum.config import Config
@@ -160,7 +160,7 @@ def doctor(repo: Path, forge: Forge, which: Callable[[str], str | None] = shutil
     def add(level: str, what: str, detail: str = "") -> None:
         checks.append(Check(level, what, detail))
 
-    if sys.version_info >= (3, 11):
+    if sys.version_info >= (3, 11):  # noqa: UP036 - doctor reports an old interpreter
         add("ok", f"python {sys.version.split()[0]}")
     else:
         add("fail", "python 3.11 or newer", sys.version.split()[0])

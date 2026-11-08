@@ -14,8 +14,8 @@ import signal
 import socket
 import subprocess
 import time
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Iterator, Sequence
 
 KILL_GRACE_S = 5
 POLL_S = 0.1

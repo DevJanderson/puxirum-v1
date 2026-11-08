@@ -71,7 +71,7 @@ def protected_changes(cfg: Config, worktree: Path, base_ref: str) -> list[str]:
     out = _git(worktree, "diff", "--name-status", "-z", "--no-renames", f"{base_ref}...HEAD")
     fields_ = out.split("\0")
     hits = []
-    for status, path in zip(fields_[0::2], fields_[1::2]):
+    for status, path in zip(fields_[0::2], fields_[1::2], strict=False):
         if status and status[0] != "A" and cfg.is_protected(path):
             hits.append(f"{status[0]} {path}")
     return hits

@@ -8,9 +8,8 @@ from puxirum.machine import Refused
 from puxirum.runner import FakeRunner
 from puxirum.store import Store
 from puxirum.world import World, marker
-
 from tests import agents
-from tests.gitrepo import Repos, git
+from tests.gitrepo import Repos
 
 CHECKS = "#!/usr/bin/env bash\nset -euo pipefail\nif [ -e bug.txt ]; then echo 'bug found' >&2; exit 1; fi\n"
 

@@ -7,7 +7,6 @@ from puxirum.git import Git, GitError
 from puxirum.machine import advance
 from puxirum.store import Effect, Store
 from puxirum.world import EffectError, World, marker, render_issue_md, replied_since_question
-
 from tests.gitrepo import Repos, git
 
 SUMMARY = "## Summary\n- one\n- two\n- three\n"

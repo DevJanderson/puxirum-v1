@@ -1,16 +1,13 @@
-import io
 import json
 import os
 import subprocess
 import sys
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from puxirum import hook
 from puxirum.claude import POLICIES, agent_env, settings_for
 from puxirum.runner import AgentTask
-
 from tests.gitrepo import Repos
 
 

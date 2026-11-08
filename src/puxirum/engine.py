@@ -22,10 +22,10 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import os
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from puxirum import files, gate, report, servers
 from puxirum.files import MalformedFile
@@ -142,6 +142,7 @@ class Engine:
                     work.append(self.start(r.issue))
                     progressed = True
                 elif r.action == "resume":
+                    assert r.job_id is not None, "a resume row always names its job"
                     work.append(r.job_id)
             if work:
                 with ThreadPoolExecutor(max_workers=self.cfg.concurrency) as pool:

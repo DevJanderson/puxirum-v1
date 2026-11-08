@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from puxirum.runner import AgentTask
-
 from tests.gitrepo import git
 
 SUMMARY = "## Summary\n- one\n- two\n- three\n"

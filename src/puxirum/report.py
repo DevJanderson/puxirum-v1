@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from puxirum.config import Config
@@ -27,7 +27,7 @@ from puxirum.store import Job, Store, now, write_atomic
 
 
 def parse_time(stamp: str) -> datetime:
-    return datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
 @dataclass
@@ -75,7 +75,7 @@ def job_report(store: Store, job: Job, until: datetime | None = None) -> JobRepo
     created = next((parse_time(ev["at"]) for ev in events if ev["type"] == "created"), None)
     if created is not None:
         stage, since = "intake", created
-        end = until or datetime.now(timezone.utc)
+        end = until or datetime.now(UTC)
         for at, to in marks + [(end, None)]:
             if stage in TERMINAL:
                 break
@@ -146,7 +146,7 @@ def render(store: Store, cfg: Config) -> str:
                         f"${r.cost_usd:.2f}" + ("*" if r.unpriced else ""),
                         duration(r.active_seconds), duration(r.waiting_seconds)) for r in jobs]
     widths = [max(len(row[i]) for row in rows) for i in range(len(header))]
-    lines += ["  ".join(c.ljust(w) for c, w in zip(row, widths)).rstrip() for row in rows]
+    lines += ["  ".join(c.ljust(w) for c, w in zip(row, widths, strict=True)).rstrip() for row in rows]
 
     total = sum(r.cost_usd for r in jobs)
     unpriced = sum(r.unpriced for r in jobs)
@@ -162,7 +162,8 @@ def render(store: Store, cfg: Config) -> str:
     lines += ["Coordination:  $0.00 (deterministic; no model involved)"]
     lines += [f"Total:         ${total:.2f}"]
     if by_role:
-        lines += ["", "By role:  " + ", ".join(f"{k} ${v:.2f}" for k, v in sorted(by_role.items(), key=lambda x: -x[1]))]
+        lines += ["", "By role:  " + ", ".join(f"{k} ${v:.2f}"
+                                               for k, v in sorted(by_role.items(), key=lambda x: -x[1]))]
         lines += ["By model: " + ", ".join(f"{k} ${v:.2f}" for k, v in sorted(by_model.items(), key=lambda x: -x[1]))]
     all_runs = runs(store)
     if all_runs:

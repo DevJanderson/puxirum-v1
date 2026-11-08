@@ -110,7 +110,8 @@ class Prompts:
         if task.role == "builder":
             return "You also change code inside the worktree. Nothing outside the worktree, apart from that file."
         if task.role == "reviewer":
-            return f"You may also save screenshots in `{task.job_dir / f'round-{task.vars.get('round')}' / 'evidence'}`."
+            evidence = task.job_dir / f"round-{task.vars.get('round')}" / "evidence"
+            return f"You may also save screenshots in `{evidence}`."
         return "Nothing else."
 
     @staticmethod
@@ -162,7 +163,8 @@ class Prompts:
                         continue
         if feedback:
             k = Path(feedback).stem.split("-", 1)[1]
-            items.append(f"`{feedback}`: a person's decision after the job escalated (see `{d / f'escalation-{k}.md'}`). "
+            escalation = d / f"escalation-{k}.md"
+            items.append(f"`{feedback}`: a person's decision after the job escalated (see `{escalation}`). "
                          "Where it disagrees with the spec or a review, the person wins.")
         return "\n".join(f"{i}. {text}" for i, text in enumerate(items, start=3))
 

@@ -1,7 +1,7 @@
 import io
 import json
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from puxirum import cli, report
 from puxirum.config import parse
@@ -10,11 +10,10 @@ from puxirum.forge import FakeForge
 from puxirum.runner import FakeRunner
 from puxirum.store import Store
 from puxirum.world import World
-
 from tests import agents
 from tests.gitrepo import Repos
 
-T0 = datetime(2026, 11, 7, 16, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 11, 7, 16, 0, tzinfo=UTC)
 
 
 def at(seconds):

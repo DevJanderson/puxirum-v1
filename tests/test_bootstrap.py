@@ -4,7 +4,6 @@ import unittest
 from puxirum import bootstrap, cli
 from puxirum.config import Config, load
 from puxirum.forge import FakeForge, ForgeError
-
 from tests.gitrepo import Repos, git
 
 

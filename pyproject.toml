@@ -19,3 +19,18 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 puxirum = ["roles/*.md", "roles/lenses/*.md"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]  # tables of cases read better on one line
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+warn_unused_ignores = true
