@@ -106,6 +106,7 @@ class PromptsTest(unittest.TestCase):
         self.assertIn("user experience", ux)
         self.assertIn(str(self.job_dir / "round-1" / "evidence"), ux)
         self.assertIn("A `PASS` without screenshots is not accepted", ux)
+        self.assertIn("at 1280px and at 375px wide", ux, "computer and phone")
         self.assertNotIn("screenshots is not accepted", self.prompts(self.task("reviewer", "code")))
         spec = self.prompts(self.task("spec"))
         self.assertIn("`## Edge cases` is required", spec)

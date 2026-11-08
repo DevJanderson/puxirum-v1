@@ -27,6 +27,9 @@ if mode == "child":
     child = subprocess.Popen(["sleep", "60"])
     with open(os.environ["FAKE_CLAUDE_PID"], "w") as f:
         f.write(str(child.pid))
+print(json.dumps({"type": "system", "subtype": "init", "cwd": os.getcwd()}))
+tool_use = {"type": "tool_use", "name": "Read", "input": {"file_path": "spec.md"}}
+print(json.dumps({"type": "assistant", "message": {"content": [tool_use]}}))
 print(
     json.dumps(
         {

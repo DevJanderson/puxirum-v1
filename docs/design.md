@@ -267,50 +267,58 @@ texto para raspar. Ele confere a versão do protocolo ao iniciar.
 
 | Necessidade do Puxirum | Recurso do tuios | Decisão v1 |
 |---|---|---|
-| Rodar um agente visível e saber quando terminou | `new-window --no-focus --keep-open --wait --timeout --print-id -- claude -p …` | **Caminho principal.** O exit code é a verdade, e a saída vai para arquivo (`--output-format json`) |
-| Variáveis por job sem shell | `tuios call new-window` com `env` e `close_on_exit` | Usado pelo executor |
-| Sessão interativa supervisionável | `start-agent --name --cwd --grants --json --ready-timeout` | Reservado para "pedir ajuda" humana a um job escalado (fase 3+) |
-| Esperar condições | `wait-for agent-state\|window-exit … --json` | Complemento. O padrão de `--timeout` é só 30 s, então sempre passar um valor |
-| Eventos ao vivo | `subscribe --types … --after-seq --boot-id` | Um laço que lista e depois assina, tratando `gap` |
-| Servidores de desenvolvimento | `new-window` no workspace de servidores + `close-window` | O núcleo abre e fecha (seção 7) |
-| Status por janela | `note set -w` (≤200 bytes, sobrevive a restart) e `set-agent-meta --source puxirum --ttl` | Ex.: `#4 · build r2 · US$ 0,41` |
-| Quadro de tarefas | `task add/stage/block/done` | Espelho de mão única, com `tasks.auto_stage` **desligado** na sessão do Puxirum para não mover cards sozinho |
-| Painel ao vivo | TML `show --pane --events` + `tml patch` | Painel principal (L51), com botões que voltam como `tml-event` |
-| Perguntar à pessoa | `ask-human -o … --timeout --request-id` | Para decisões curtas (≤160 bytes, ≤9 opções); a resposta longa continua na issue |
-| Avisar no celular | `[notify]` do daemon, disparado pelos itens do Inbox | Configuração da pessoa; o Puxirum só gera o item |
-| Permissões mínimas | `--grants none` | Todo agente `claude -p` roda com `none` |
-| Auditoria por turno | `checkpoint list/diff`, `agent-log --recap --json` | Opcional no relatório do PR |
+| Ver os agentes trabalhando | Nenhum pane por agente: os agentes rodam como processos do núcleo e gravam `stream-json`; o pane **Agentes** roda `puxirum feed`, que mostra uma linha por passo de todos eles | Uma janela só, de tamanho fixo, por mais agentes que rodem |
+| Montar a bancada | `set-workspace-name`, `tml-open` (pane, no workspace do núcleo), `split-window` (lado `down` do painel) e `send-text` para iniciar o feed | O núcleo monta ao iniciar e guarda os ids em `state/workbench.json` |
+| Painel ao vivo | `tml-open` com estado vazio e `tml-patch` com os dados | Os dados só chegam por patch JSON: nada vindo de uma issue é lido como TML |
+| Status por janela | `set-note` (≤200 bytes) | Ex.: `puxirum · 2 ativos · 1 aguardando · agentes US$ 0.63` |
+| Avisar a pessoa | `ask-human` com `wait: false` | Um item no Inbox quando um job passa a esperar por alguém, uma vez por espera; o `[notify]` da pessoa leva ao celular |
+| Saber se uma janela ainda existe | `get-window` e `tml-get` | Uma janela fechada pela pessoa é aberta de novo no próximo `refresh` |
+| Servidores de desenvolvimento | Nenhum | Rodam em segundo plano, com o log no job; não ocupam pane |
+| Quadro de tarefas | `task add/stage/...` | **Não usado na v1**: o painel já mostra os jobs |
 | Worktrees | `tuios worktree new` / `fan` | **Não usados**: o Puxirum cria os próprios worktrees com caminho conhecido |
-| Commit, push, merge | `ship commit/push/pr/merge` | **Não usados**: o fluxo é `git` + `gh` no núcleo (`ship merge` mescla localmente, fora do fluxo de PR) |
+| Commit, push, merge | `ship commit/push/pr/merge` | **Não usados**: o fluxo é `git` + `gh` no núcleo |
 
 ### 11.3 Layout
 
-| Workspace | Janelas |
-|---|---|
-| `puxirum` | Puxirum (o núcleo, com o log), Painel (TML), um pane por agente ativo (`#4 builder r2`), Gate |
-| `servidores` | Um pane por servidor de desenvolvimento (`#4 ux :5174`) |
+Um workspace, nomeado `puxirum`, com três panes:
 
-O núcleo nomeia os workspaces (`set-workspace-name`), abre e fecha os panes dos agentes e fecha os que terminaram depois
-de um tempo configurável (com `--keep-open`, a pessoa ainda pode ler a saída nesse intervalo).
+```
+┌──────────────────┬──────────────────┐
+│                  │      Painel      │
+│     Puxirum      │       (TML)      │
+│ (log do núcleo)  ├──────────────────┤
+│                  │     Agentes      │
+│                  │ (puxirum feed)   │
+└──────────────────┴──────────────────┘
+```
+
+- **Puxirum**: o pane onde a pessoa roda `puxirum run`; a saída é o log do núcleo.
+- **Painel**: números do topo (ativos, aguardando, mesclados, custo dos agentes, coordenação US$ 0.00) e as abas
+  Jobs, Custos e Atenção.
+- **Agentes**: o feed ao vivo de todos os agentes ativos.
+
+O layout sai certo quando o workspace tem só o pane do núcleo; com outros panes ele funciona, mas o núcleo avisa no
+log que a disposição pode variar. `puxirum run --no-workbench` desliga a bancada.
 
 ### 11.4 Onde o núcleo roda
 
-Dois modos, decididos na Fase 1 com um teste:
-
-- **Num pane do tuios** (preferido, porque fica visível): precisa do grant `admin`, o padrão do modo `open`. Com o modo
-  `strict`, o pane do Puxirum recebe `admin` explicitamente.
-- **Fora de qualquer pane** (por exemplo, `systemd --user`): sem limite de grants, desde que sempre passe `-s`.
+Num pane do tuios, para a bancada; o pane precisa poder abrir panes e superfícies (o grant padrão do modo `open`).
+Fora do tuios, ou com `--no-workbench`, o Puxirum roda igual, só sem bancada. Um daemon que não fala o protocolo 1 é
+avisado no log, e a execução segue sem bancada.
 
 ### 11.5 Cuidados conhecidos
 
-- O mail do tuios "acorda" agentes em repouso digitando no pane. Agentes `claude -p` não ficam em repouso, mas vale
-  `[agents.mail] wake=false` se houver interferência.
-- `wait-for window-output` casa também com o eco do comando e o scrollback antigo. Não usar para detectar fim.
-- `done` pode chegar com subagentes ativos. Para sessões interativas, conferir `subagents == 0`.
-- Grants **não são sandbox**: protegem só o uso do tuios. O sistema de arquivos é protegido pelas ferramentas permitidas
-  ao agente e pelo gate.
-- Uma sessão restaurada depois de reiniciar o daemon volta sem estado de agentes, mail e holders de cards. O núcleo
-  reconstrói o espelho a partir dos arquivos.
+- **Uma superfície só aceita patch do pane que a abriu.** Por isso o painel é aberto pelo próprio `puxirum run`; uma
+  execução seguinte, num pane novo, reabre o painel.
+- **`list-windows` chama o id de `window_id`, e `get-window` chama de `id`.** O adaptador usa o nome de cada verbo.
+- **Os testes nunca falam com o tuios real.** A suíte roda dentro de um pane e apaga as variáveis `TUIOS_*` antes de
+  começar; num teste antigo, a bancada chegou a abrir painéis na sessão de quem rodava os testes.
+- **O sandbox do builder monta marcadores** (`.bashrc`, `.claude/`) na worktree, visíveis só para ele. O prompt manda
+  ignorá-los, e no disco sobra no máximo uma pasta vazia, que o git ignora.
+- Grants **não são sandbox**: protegem só o uso do tuios. O sistema de arquivos é protegido pelo sandbox do builder,
+  pelas ferramentas permitidas a cada papel e pelo gate.
+- Uma sessão restaurada depois de reiniciar o daemon volta sem as superfícies. O núcleo reabre o painel a partir dos
+  arquivos.
 
 ## 12. Custos, tempo e métricas
 
@@ -420,7 +428,7 @@ Legenda: ✅ F1 = coberto por teste na Fase 1; 🟡 = a parte do núcleo está c
 | **I** | **Revisão** | | | |
 | I38 | Revisores em paralelo, esperando todos | Transição só com todos os vereditos | ✅ F1 | test_reviewers_run_in_parallel_and_all_must_pass |
 | I39 | Quatro olhares: código, UX, UI, segurança | Roteamento chama os corretos | ✅ F1 | test_route, test_reviewers_run_in_parallel… |
-| I40 | UX e UI usam o app no navegador, em computador e celular | Evidência anexada obrigatória | 🟡 F2/F3 | servidor pelo núcleo e capturas obrigatórias (test_a_pass_without_screenshots_is_not_accepted); janelas no tuios na F3 |
+| I40 | UX e UI usam o app no navegador, em computador e celular | Evidência anexada obrigatória | ✅ F2 | servidor pelo núcleo, capturas a 1280px e 375px obrigatórias (test_a_pass_without_screenshots_is_not_accepted, test_role_specifics) |
 | I41 | A partir da rodada 2, conferem os próprios apontamentos | Prompt recebe a revisão anterior | ✅ F2 | test_reviewer_sees_its_previous_review |
 | I42 | PASS/CHANGES, bloqueante separado de observação | Validação do formato | ✅ F1 | test_review (contrato) |
 | **J** | **Rodadas e escalada** | | | |
@@ -434,7 +442,7 @@ Legenda: ✅ F1 = coberto por teste na Fase 1; 🟡 = a parte do núcleo está c
 | K49 | Remove o worktree ao terminar | Pasta some em `merged`/`rejected` | ✅ F1 | assertMerged, test_reject_an_escalated_job |
 | **L** | **Visibilidade e retomada** | | | |
 | L50 | Cada arquivo começa com resumo de 3 a 5 tópicos | Validação do formato | ✅ F1 | test_summary_rules |
-| L51 | Painel com cartões, rodadas, risco, custo, tempo e arquivos | Painel no tuios (seção 11) | ⏳ F3 | painel no tuios |
+| L51 | Painel com cartões, rodadas, risco, custo, tempo e arquivos | Painel no tuios (seção 11) | ✅ F3 | painel TML com jobs, etapa, rodada, custo, tempo, PR, custos por papel e atenção (test_workbench); teste real no tuios |
 | L52 | Resumo em tabela no terminal | `puxirum status` | ✅ F1 | test_cli (status) |
 | L53 | Custo e tempo por job | `puxirum report` | ✅ F2 | test_report (custo por papel e modelo, tempo ativo e de espera, execuções); custo real lido do `claude -p` |
 | L54 | Retomada total após morte do processo | Matar o processo no meio e retomar | ✅ F1 | test_agent_crash_resumes_in_a_new_engine |

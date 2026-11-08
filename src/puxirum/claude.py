@@ -12,8 +12,10 @@ Each role runs with the least it needs:
   helpers, an empty `gh` config. Even a command that slips past the rules
   can't push, open PRs or merge; only the core talks to GitHub.
 
-The prompt goes in on stdin; the JSON result is saved under the job's `logs/`
-and its `total_cost_usd` is the cost of the run.
+The prompt goes in on stdin. The agent streams one JSON event per line
+(`--output-format stream-json`) into the job's `logs/`, so its progress can be
+followed while it works (`puxirum feed`). The last event is the result, and its
+`total_cost_usd` is the cost of the run.
 """
 
 from __future__ import annotations
@@ -154,9 +156,16 @@ def agent_env(task: AgentTask, base: dict[str, str] | None = None) -> dict[str, 
         {
             "GIT_SSH_COMMAND": "false",
             "GIT_TERMINAL_PROMPT": "0",
-            "GIT_CONFIG_COUNT": "1",
+            # No stored credentials, and no signing: an agent's commits are its own, never signed
+            # with the person's key (which the sandbox hides anyway). The merge on the forge makes
+            # the commit that lands on the base branch.
+            "GIT_CONFIG_COUNT": "3",
             "GIT_CONFIG_KEY_0": "credential.helper",
             "GIT_CONFIG_VALUE_0": "",
+            "GIT_CONFIG_KEY_1": "commit.gpgsign",
+            "GIT_CONFIG_VALUE_1": "false",
+            "GIT_CONFIG_KEY_2": "tag.gpgsign",
+            "GIT_CONFIG_VALUE_2": "false",
             "GH_CONFIG_DIR": str(gh_dir),
             "GH_PROMPT_DISABLED": "1",
             "PUXIRUM_JOB": task.job_id,
@@ -195,7 +204,8 @@ class ClaudeRunner:
             "--model",
             task.model,
             "--output-format",
-            "json",
+            "stream-json",
+            "--verbose",
             "--permission-mode",
             "dontAsk",
             "--tools",
@@ -215,7 +225,7 @@ class ClaudeRunner:
         logs = task.job_dir / "logs"
         logs.mkdir(parents=True, exist_ok=True)
         stem = f"{task.name.replace(':', '-')}-r{task.vars.get('round', 0)}-a{task.vars.get('attempt', 1)}"
-        out_path, err_path = logs / f"{stem}.json", logs / f"{stem}.err"
+        out_path, err_path = logs / f"{stem}.jsonl", logs / f"{stem}.err"
         prompt = self.prompt_for(task)
         (logs / f"{stem}.prompt.md").write_text(prompt, encoding="utf-8")
         start = time.monotonic()
@@ -245,19 +255,33 @@ class ClaudeRunner:
             else:
                 _kill_group(proc, grace=0)  # nothing the agent started (a dev server, a watcher) outlives it
         seconds = time.monotonic() - start
-        result = _parse(out_path)
+        result = final_result(out_path)
         cost = result.get("total_cost_usd") if isinstance(result.get("total_cost_usd"), (int, float)) else None
         if code == 0 and (not result or result.get("is_error")):
             code = 1  # claude exited 0 but reported an error, or printed no result
         return AgentResult(exit_code=code, seconds=seconds, cost_usd=cost, log=out_path)
 
 
-def _parse(path: Path) -> dict:
+def events(path: Path) -> list[dict]:
+    """The stream's events, skipping lines that aren't JSON objects (a cut-off last line, stray output)."""
+    out: list[dict] = []
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return out
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict):
+            out.append(event)
+    return out
+
+
+def final_result(path: Path) -> dict:
+    """The run's `result` event, or {} when the agent never got that far."""
+    return next((e for e in reversed(events(path)) if e.get("type") == "result"), {})
 
 
 def _kill_group(proc: subprocess.Popen, grace: float = KILL_GRACE_S) -> None:

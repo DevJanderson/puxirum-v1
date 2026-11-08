@@ -27,6 +27,7 @@ You work in the job's worktree, `{{worktree}}`, a checkout of branch `{{branch}}
 - Commit on `{{branch}}` with short, one-line messages; one commit per distinct piece of work.
 - Stage explicit paths. Never `git add -A` or `git add .`.
 - Don't amend, rebase or rewrite commits that exist already: the branch may be published.
+- Your shell runs in a sandbox. Files like `.bashrc` or `.claude/` that show up in the worktree are its placeholders, not the project's: leave them alone and don't commit them.
 - When you finish, `git status --porcelain` must print nothing. The coordinator refuses a dirty worktree.
 - Don't push. The coordinator does that.
 

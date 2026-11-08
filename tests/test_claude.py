@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from puxirum.claude import POLICIES, ClaudeRunner, agent_env, settings_for
+from puxirum.claude import POLICIES, ClaudeRunner, agent_env, events, final_result, settings_for
 from puxirum.runner import AgentTask
 
 FAKE = Path(__file__).with_name("fake_claude.py")
@@ -71,7 +71,8 @@ class ClaudeRunnerTest(unittest.TestCase):
         argv = rec["argv"]
         self.assertEqual(argv[0], "-p")
         self.assertEqual(self.flag(argv, "--model"), "sonnet")
-        self.assertEqual(self.flag(argv, "--output-format"), "json")
+        self.assertEqual(self.flag(argv, "--output-format"), "stream-json")
+        self.assertIn("--verbose", argv, "claude -p needs it to stream")
         self.assertEqual(self.flag(argv, "--permission-mode"), "dontAsk")
         self.assertEqual(self.flag(argv, "--setting-sources"), "")
         self.assertEqual(self.flag(argv, "--max-budget-usd"), "4.00")
@@ -184,12 +185,29 @@ class ClaudeRunnerTest(unittest.TestCase):
         )
         self.assertEqual(res.stdout.strip().splitlines()[-1:] or [""], [""], "the last helper is the empty reset")
 
+    def test_agent_commits_are_never_signed_with_the_persons_key(self):
+        env = agent_env(self.task())
+        for key in ("commit.gpgsign", "tag.gpgsign"):
+            res = subprocess.run(
+                ["git", "config", "--get", key], env=env, capture_output=True, text=True, cwd=self.worktree
+            )
+            self.assertEqual(res.stdout.strip(), "false", key)
+
     # ---- results --------------------------------------------------------------------------------
 
     def test_success_reports_cost(self):
         result, _ = self.run_fake()
         self.assertEqual((result.exit_code, result.cost_usd), (0, 0.123))
-        self.assertEqual(json.loads(result.log.read_text())["num_turns"], 3)
+        self.assertEqual(final_result(result.log)["num_turns"], 3)
+        self.assertEqual([e["type"] for e in events(result.log)], ["system", "assistant", "result"])
+
+    def test_a_cut_off_stream_has_no_result(self):
+        log = self.job_dir / "cut.jsonl"
+        log.write_text('{"type": "system"}\nnot json\n{"type": "result", "total_cost_usd": 1}\n{"type": "assis')
+        self.assertEqual(final_result(log), {"type": "result", "total_cost_usd": 1})
+        log.write_text('{"type": "system"}\n')
+        self.assertEqual(final_result(log), {})
+        self.assertEqual(final_result(self.job_dir / "missing.jsonl"), {})
 
     def test_errors(self):
         for mode, code, cost in (("fail", 1, 0.2), ("is_error", 1, 0.1), ("garbage", 1, None)):
@@ -215,7 +233,7 @@ class ClaudeRunnerTest(unittest.TestCase):
 
     def test_logs_are_per_role_round_and_attempt(self):
         self.run_fake(self.task("reviewer", "ux", "round-2/review-ux.md", round=2, attempt=2))
-        self.assertTrue((self.job_dir / "logs" / "reviewer-ux-r2-a2.json").exists())
+        self.assertTrue((self.job_dir / "logs" / "reviewer-ux-r2-a2.jsonl").exists())
 
 
 if __name__ == "__main__":

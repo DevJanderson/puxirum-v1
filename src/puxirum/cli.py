@@ -3,19 +3,27 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import shutil
 import subprocess
 import sys
-from collections.abc import Callable
+import threading
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 from puxirum import __version__, bootstrap, config, report
 from puxirum.claude import ClaudeRunner
 from puxirum.engine import Engine
+from puxirum.feed import Feed
 from puxirum.forge import Forge, GhForge
 from puxirum.machine import Refused
 from puxirum.prompts import PromptError, Prompts
 from puxirum.store import Store, StoreError
+from puxirum.tuios import Tuios, TuiosError
+from puxirum.workbench import Workbench
 from puxirum.world import World
+
+REFRESH_S = 2.0
 
 
 def repo_root(start: Path) -> Path:
@@ -33,6 +41,46 @@ def default_engine(cwd: Path) -> Engine:
         prompt_for=Prompts(cfg, repo), command=cfg.agent_command, timeout_s=cfg.agent_timeout_s, budget_usd=cfg.budgets
     )
     return Engine(world, runner, log=lambda msg: print(msg, file=sys.stderr))
+
+
+def default_workbench(engine: Engine) -> Workbench | None:
+    """The tuios workbench when this runs in a tuios pane; None anywhere else."""
+    try:
+        t = Tuios.detect()
+    except TuiosError as e:
+        print(f"puxirum: no workbench: {e}", file=sys.stderr)
+        return None
+    if t is None:
+        return None
+    return Workbench(t, engine.store, engine.cfg, log=lambda msg: print(msg, file=sys.stderr))
+
+
+@contextlib.contextmanager
+def refreshing(bench: Workbench | None, interval_s: float = REFRESH_S) -> Iterator[None]:
+    """Keep the workbench up to date while the block runs. A workbench that fails never stops the run."""
+    if bench is None:
+        yield
+        return
+    try:
+        bench.open()
+    except (TuiosError, OSError) as e:
+        print(f"puxirum: no workbench: {e}", file=sys.stderr)
+        yield
+        return
+    stop = threading.Event()
+
+    def loop() -> None:
+        while not stop.wait(interval_s):
+            bench.refresh()
+
+    thread = threading.Thread(target=loop, name="workbench", daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        thread.join(timeout=interval_s + 5)
+        bench.refresh()
 
 
 def _text(arg: str | None) -> str:
@@ -69,6 +117,7 @@ def main(
     argv: list[str] | None = None,
     make_engine: Callable[[Path], Engine] = default_engine,
     make_forge: Callable[[Path], Forge] = lambda repo: GhForge(cwd=repo),
+    make_workbench: Callable[[Engine], Workbench | None] | None = None,
     cwd: Path | None = None,
     out=None,
 ) -> int:
@@ -82,7 +131,10 @@ def main(
     sub.add_parser("doctor", help="check everything a run needs")
     p_run = sub.add_parser("run", help="work the queue until every job waits or finishes")
     p_run.add_argument("issue", nargs="?", type=int, help="only this issue")
+    p_run.add_argument("--no-workbench", action="store_true", help="don't open the tuios workbench")
     sub.add_parser("status", help="what each issue and job is doing")
+    p_feed = sub.add_parser("feed", help="follow every running agent, one line per step")
+    p_feed.add_argument("--once", action="store_true", help="print what is new and exit")
     p_rep = sub.add_parser("report", help="costs and times by job, role, model and run")
     p_rep.add_argument("--json", action="store_true", help="machine-readable output")
     p_fb = sub.add_parser("feedback", help="send an escalated job back to work with your feedback")
@@ -106,7 +158,9 @@ def main(
             return 1 if any(c.level == "fail" for c in results) else 0
         engine = make_engine(cwd)
         if args.command == "run":
-            summary = engine.run(only=args.issue)
+            bench = (make_workbench or default_workbench)(engine) if not args.no_workbench else None
+            with refreshing(bench):
+                summary = engine.run(only=args.issue)
             _status(engine, out)
             print(
                 f"\nThis run: {summary['agents']} agent runs, ${summary['cost_usd']:.2f}, "
@@ -115,6 +169,14 @@ def main(
             )
         elif args.command == "status":
             _status(engine, out)
+        elif args.command == "feed":
+            tty = out.isatty()
+            live = Feed(engine.store, colour=tty, width=lambda: shutil.get_terminal_size().columns if tty else None)
+            try:
+                for line in live.poll() if args.once else live.follow():
+                    print(line, file=out, flush=True)
+            except KeyboardInterrupt:
+                pass
         elif args.command == "report":
             text = report.as_json(engine.store) if args.json else report.render(engine.store, engine.cfg)
             print(text, end="", file=out)
