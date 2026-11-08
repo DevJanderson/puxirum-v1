@@ -12,5 +12,6 @@ Status: early development. See [docs/design.md](docs/design.md).
 ```bash
 python3 -m unittest discover -s tests -t .
 ruff check src tests
+ruff format --check src tests
 mypy
 ```
