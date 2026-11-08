@@ -15,3 +15,10 @@ ruff check src tests
 ruff format --check src tests
 mypy
 ```
+
+## License
+
+Copyright (C) 2026 Janderson Lira.
+
+[GPLv3](LICENSE) (GPL-3.0-only). You can use, modify and share this code, and any version you distribute must also
+be released under GPLv3.
