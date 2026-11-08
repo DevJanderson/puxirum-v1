@@ -268,7 +268,7 @@ texto para raspar. Ele confere a versão do protocolo ao iniciar.
 | Necessidade do Puxirum | Recurso do tuios | Decisão v1 |
 |---|---|---|
 | Ver os agentes trabalhando | Nenhum pane por agente: os agentes rodam como processos do núcleo e gravam `stream-json`; o pane **Agentes** roda `puxirum feed`, que mostra uma linha por passo de todos eles | Uma janela só, de tamanho fixo, por mais agentes que rodem |
-| Montar a bancada | `set-workspace-name`, `tml-open` (pane, no workspace do núcleo), `split-window` (lado `down` do painel) e `send-text` para iniciar o feed | O núcleo monta ao iniciar e guarda os ids em `state/workbench.json` |
+| Montar a bancada | `set-workspace-name`, `tml-open` (pane, no workspace do núcleo), `split-window` (lado `down` do painel para o log, lado `right` do log para o feed) e `send-text` para iniciar os dois | O núcleo monta ao iniciar e guarda os ids em `state/workbench.json` |
 | Painel ao vivo | `tml-open` com estado vazio e `tml-patch` com os dados | Os dados só chegam por patch JSON: nada vindo de uma issue é lido como TML |
 | Status por janela | `set-note` (≤200 bytes) | Ex.: `puxirum · 2 ativos · 1 aguardando · agentes US$ 0.63` |
 | Avisar a pessoa | `ask-human` com `wait: false` | Um item no Inbox quando um job passa a esperar por alguém, uma vez por espera; o `[notify]` da pessoa leva ao celular |
@@ -280,31 +280,40 @@ texto para raspar. Ele confere a versão do protocolo ao iniciar.
 
 ### 11.3 Layout
 
-Um workspace, nomeado `puxirum`, com três panes:
+Um workspace, nomeado `puxirum`, com quatro panes:
 
 ```
 ┌──────────────────┬──────────────────┐
 │                  │      Painel      │
-│     Puxirum      │       (TML)      │
-│ (log do núcleo)  ├──────────────────┤
-│                  │     Agentes      │
-│                  │ (puxirum feed)   │
-└──────────────────┴──────────────────┘
+│   Claude Code    │       (TML)      │
+│ (você, /puxirum) ├─────────┬────────┤
+│                  │ Puxirum │Agentes │
+│                  │(run.log)│ (feed) │
+└──────────────────┴─────────┴────────┘
 ```
 
-- **Puxirum**: o pane onde a pessoa roda `puxirum run`; a saída é o log do núcleo.
+- **Claude Code**: a conversa da pessoa com a skill `/puxirum`, que consulta a fábrica e inicia `puxirum run` em
+  segundo plano. Pode ser também um shell comum onde a pessoa roda `puxirum run`.
 - **Painel**: números do topo (ativos, aguardando, mesclados, custo dos agentes, coordenação US$ 0.00) e as abas
   Jobs, Custos e Atenção.
+- **Puxirum**: o log do núcleo, `tail -F` de `state/run.log`. Como o run roda em segundo plano, o log não aparece
+  no pane da conversa.
 - **Agentes**: o feed ao vivo de todos os agentes ativos.
 
-O layout sai certo quando o workspace tem só o pane do núcleo; com outros panes ele funciona, mas o núcleo avisa no
-log que a disposição pode variar. `puxirum run --no-workbench` desliga a bancada.
+O layout sai certo quando o workspace tem só o pane da conversa; com outros panes ele funciona, mas o núcleo avisa no
+log que a disposição pode variar. Log e feed são abertos sempre juntos, para ficarem lado a lado embaixo do painel.
+`puxirum workbench` monta a bancada sem rodar a fila; `puxirum run --no-workbench` a desliga.
 
 ### 11.4 Onde o núcleo roda
 
-Num pane do tuios, para a bancada; o pane precisa poder abrir panes e superfícies (o grant padrão do modo `open`).
-Fora do tuios, ou com `--no-workbench`, o Puxirum roda igual, só sem bancada. Um daemon que não fala o protocolo 1 é
-avisado no log, e a execução segue sem bancada.
+Em segundo plano, a partir do pane da conversa (a skill usa o `run_in_background` do Claude Code), ou num shell do
+tuios. Em ambos os casos o processo herda o pane de quem o iniciou, que é o dono do painel. O pane precisa poder abrir
+panes e superfícies (o grant padrão do modo `open`). Fora do tuios, ou com `--no-workbench`, o Puxirum roda igual, só
+sem bancada. Um daemon que não fala o protocolo 1 é avisado no log, e a execução segue sem bancada.
+
+**Um run por vez.** `puxirum run` segura `state/run.lock` do início ao fim, e um segundo run recusa. Sem isso, a
+limpeza de órfãos do segundo mataria os agentes vivos do primeiro. `puxirum workbench` também recusa enquanto um run
+trabalha, para não disputar o painel com ele.
 
 ### 11.5 Cuidados conhecidos
 
@@ -363,13 +372,18 @@ Uma execução de agente só conta se ele sair com 0 **e** reescrever o arquivo 
 
 | Comando | Faz |
 |---|---|
-| `puxirum init` | Instala o Puxirum num projeto (pastas, configuração, labels, verificação) |
+| `puxirum init` | Instala o Puxirum num projeto (pastas, configuração, labels, skill `/puxirum`, verificação) |
 | `puxirum run [N]` | Processa a fila inteira, ou só a issue N; retoma o que estiver em andamento |
 | `puxirum status` | Mostra os jobs, as etapas e o que espera pela pessoa |
+| `puxirum workbench` | Monta a bancada do tuios ao lado do pane atual, sem rodar a fila |
+| `puxirum feed` | Segue todos os agentes ativos, uma linha por passo (é o pane Agentes) |
 | `puxirum feedback N` | Envia o retorno da pessoa a um job escalado |
 | `puxirum reject N` | Rejeita um job em espera, com o motivo |
 | `puxirum report` | Custos e tempos por job, por execução e comparados com a linha de base |
-| `puxirum doctor` | Verifica pré-requisitos: `gh`, `claude`, tuios, labels, `checks.sh` |
+| `puxirum doctor` | Verifica pré-requisitos: `gh`, `claude`, tuios, labels, `checks.sh`, skill |
+
+A skill `/puxirum` (`.claude/skills/puxirum/SKILL.md`, instalada pelo `init`) é a forma conversacional de usar esses
+comandos: ela consulta, explica e repassa as decisões da pessoa, mas nunca faz o trabalho de um job.
 
 ## 16. Checklist de paridade
 

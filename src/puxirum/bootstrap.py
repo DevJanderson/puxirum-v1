@@ -99,6 +99,14 @@ exit 1
 
 IGNORES = (".puxirum/state/", ".worktrees/")
 
+SKILL = ".claude/skills/puxirum/SKILL.md"
+
+
+def skill_text() -> str:
+    """The /puxirum skill this version of Puxirum ships."""
+    return (Path(__file__).parent / "skills" / "puxirum" / "SKILL.md").read_text(encoding="utf-8")
+
+
 LABELS = {  # name attribute -> (color, description)
     "queue_label": ("1d76db", "Puxirum: work this issue"),
     "needs_info_label": ("fbca04", "Puxirum: waiting for the author"),
@@ -113,6 +121,8 @@ def init(repo: Path, forge: Forge | None, out: Callable[[str], None]) -> None:
     _create(repo, ".puxirum/config.toml", CONFIG_TEMPLATE, out)
     if _create(repo, ".puxirum/checks.sh", CHECKS_TEMPLATE, out):
         (d / "checks.sh").chmod(0o755)
+    (repo / SKILL).parent.mkdir(parents=True, exist_ok=True)
+    _create(repo, SKILL, skill_text(), out)
 
     gitignore = repo / ".gitignore"
     text = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
@@ -131,7 +141,7 @@ def init(repo: Path, forge: Forge | None, out: Callable[[str], None]) -> None:
             if name not in existing:
                 forge.create_label(name, color, description)
                 out(f"created label {name}")
-    out("next: edit .puxirum/checks.sh, commit .puxirum/ and .gitignore, then run `puxirum doctor`")
+    out("next: edit .puxirum/checks.sh, commit .puxirum/, .claude/ and .gitignore, then run `puxirum doctor`")
 
 
 def _create(repo: Path, rel: str, text: str, out: Callable[[str], None]) -> bool:
@@ -203,6 +213,14 @@ def doctor(repo: Path, forge: Forge, which: Callable[[str], str | None] = shutil
             f"{cfg.checks} is committed",
             "" if tracked else "commit it so every worktree's gate uses the same checks",
         )
+
+    skill = repo / SKILL
+    if not skill.is_file():
+        add("warn", "/puxirum skill", f"{SKILL} is missing; run `puxirum init`")
+    elif skill.read_text(encoding="utf-8") != skill_text():
+        add("warn", "/puxirum skill", f"{SKILL} differs from this version's; delete it and run `puxirum init`")
+    else:
+        add("ok", "/puxirum skill installed")
 
     if which("gh") is None:
         add("fail", "gh CLI", "install it: https://cli.github.com")

@@ -125,6 +125,20 @@ class Store:
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
 
+    @contextlib.contextmanager
+    def run_lock(self) -> Iterator[None]:
+        """Held for a whole `puxirum run`: a second run would take the first one's agents for orphans."""
+        self.root.mkdir(parents=True, exist_ok=True)
+        with open(self.root / "run.lock", "a") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise StoreError("another `puxirum run` is working in this repository") from None
+            try:
+                yield
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+
     # ---- reading ----------------------------------------------------------------
 
     def job_dir(self, job_id: str) -> Path:

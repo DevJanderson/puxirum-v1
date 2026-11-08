@@ -52,14 +52,23 @@ class Base(unittest.TestCase):
 
 
 class LayoutTest(Base):
-    def test_open_builds_the_three_panes(self):
+    def below(self):
+        """The core's log and the feed, the two panes the core split off."""
+        split = {info["beside"][1]: w for w, info in self.d.windows.items() if info.get("beside")}
+        return split.get("down"), split.get("right")
+
+    def test_open_builds_the_layout(self):
         self.bench().open()
         self.assertEqual(self.d.workspace_names, {5: "puxirum"})
         s = self.surface()
         panel = s["window"]
         self.assertEqual(self.d.windows[panel]["workspace"], 5, "on the core's workspace, not the person's")
-        (feed,) = [w for w, info in self.d.windows.items() if info.get("beside")]
-        self.assertEqual(self.d.windows[feed]["beside"], (panel, "down"))
+        log, feed = self.below()
+        self.assertEqual(self.d.windows[log]["beside"], (panel, "down"))
+        self.assertEqual(self.d.windows[feed]["beside"], (log, "right"))
+        (tail,) = self.d.windows[log]["typed"]
+        self.assertEqual(tail, f"exec tail -n 200 -F {self.repo}/.puxirum/state/run.log\n")
+        self.assertTrue((self.repo / ".puxirum/state/run.log").exists(), "tail starts on a file that is there")
         (typed,) = self.d.windows[feed]["typed"]
         self.assertTrue(typed.startswith(f"cd {self.repo} && exec env PYTHONPATH="))
         self.assertTrue(typed.endswith(" -m puxirum.cli feed\n"))
@@ -75,10 +84,11 @@ class LayoutTest(Base):
 
     def test_closed_panes_are_opened_again(self):
         self.bench().open()
-        feed = next(w for w, info in self.d.windows.items() if info.get("beside"))
+        _, feed = self.below()
         del self.d.windows[feed]
         self.bench().open()
-        self.assertEqual(len(self.verbs("split-window")), 2)
+        self.assertEqual(len(self.verbs("split-window")), 4, "the log and the feed come back together")
+        self.assertEqual(len(self.d.windows), 4, "the lone log pane was closed first")
         self.assertEqual(len(self.verbs("tml-open")), 1, "the dashboard was still there")
 
         b = self.bench()
@@ -95,7 +105,7 @@ class LayoutTest(Base):
         self.bench().open()
         self.assertEqual(len(self.verbs("tml-open")), 2)
         self.assertEqual(len([w for w in self.d.windows if w in old]), 1, "only the core pane is left of the old ones")
-        self.assertEqual(len(self.d.windows), 3)
+        self.assertEqual(len(self.d.windows), 4)
 
     def test_panes_from_another_session_are_not_reused(self):
         self.bench().open()
@@ -205,9 +215,48 @@ class RunTest(unittest.TestCase):
         self.assertEqual((state["merged"], state["active"]), (1, 0))
         self.assertEqual(state["cost"], "US$ 0.50")
 
+    def test_a_second_run_is_refused(self):
+        r = Repos()
+        self.addCleanup(r.cleanup)
+        engine = Engine(World(r.main, parse({}), Store(r.main), FakeForge(operator="op")), FakeRunner(agents.happy()))
+        err = io.StringIO()
+        with engine.store.run_lock(), unittest.mock.patch("sys.stderr", err):
+            code = cli.main(["run", "--no-workbench"], make_engine=lambda cwd: engine, out=io.StringIO())
+            code_wb = cli.main(
+                ["workbench"],
+                make_engine=lambda cwd: engine,
+                make_workbench=lambda e: unittest.mock.Mock(),
+                out=io.StringIO(),
+            )
+        self.assertEqual((code, code_wb), (1, 1))
+        self.assertIn("another `puxirum run` is working", err.getvalue())
+
+    def test_workbench_command(self):
+        engine = unittest.mock.MagicMock()
+        bench = unittest.mock.Mock()
+        out = io.StringIO()
+        self.assertEqual(
+            cli.main(["workbench"], make_engine=lambda cwd: engine, make_workbench=lambda e: bench, out=out), 0
+        )
+        bench.open.assert_called_once_with()
+        with unittest.mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(cli.main(["workbench"], make_engine=lambda cwd: engine, make_workbench=lambda e: None), 1)
+
+    def test_the_log_goes_to_the_run_log_too(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "state" / "run.log"
+            with unittest.mock.patch("sys.stderr", io.StringIO()) as err:
+                log = cli.logger(path)
+                log("001-x: new job for #1")
+                log("001-x: merged")
+            self.assertEqual(err.getvalue(), "001-x: new job for #1\n001-x: merged\n")
+            lines = path.read_text().splitlines()
+            self.assertEqual(len(lines), 2)
+            self.assertRegex(lines[0], r"^\d\d:\d\d:\d\d  001-x: new job for #1$")
+
     def test_no_workbench_flag(self):
         called = []
-        engine = unittest.mock.Mock()
+        engine = unittest.mock.MagicMock()
         engine.run.return_value = {"agents": 0, "cost_usd": 0.0, "wall_seconds": 0}
         engine.plan.return_value = []
         engine.store.all.return_value = []

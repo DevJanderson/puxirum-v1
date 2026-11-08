@@ -27,6 +27,19 @@ class InitTest(unittest.TestCase):
         self.assertEqual((self.repo / ".gitignore").read_text(), "node_modules/\n.puxirum/state/\n.worktrees/\n")
         self.assertEqual(sorted(self.forge.repo_labels), ["puxirum", "puxirum:needs-human", "puxirum:needs-info"])
         self.assertTrue((self.repo / ".puxirum/roles").is_dir())
+        skill = (self.repo / ".claude/skills/puxirum/SKILL.md").read_text()
+        self.assertTrue(skill.startswith("---\nname: puxirum\ndescription: "))
+        self.assertEqual(skill, bootstrap.skill_text())
+
+    def test_the_skill_doctor_check(self):
+        def skill_check():
+            return next(c for c in bootstrap.doctor(self.repo, self.forge, lambda t: t) if "skill" in c.what)
+
+        self.assertEqual(skill_check().level, "warn")
+        bootstrap.init(self.repo, None, self.lines.append)
+        self.assertEqual(skill_check().level, "ok")
+        (self.repo / bootstrap.SKILL).write_text("old\n")
+        self.assertIn("differs", skill_check().detail)
 
     def test_never_overwrites_and_is_repeatable(self):
         (self.repo / ".puxirum").mkdir()

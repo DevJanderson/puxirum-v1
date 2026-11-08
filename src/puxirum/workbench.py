@@ -1,22 +1,25 @@
-"""The tuios workbench: one workspace, three panes, all opened and kept by the core.
+"""The tuios workbench: one workspace, four panes, opened and kept by the core.
 
     ┌──────────────────┬──────────────────┐
     │                  │      Painel      │
-    │     Puxirum      │       (TML)      │
-    │ (this run's log) ├──────────────────┤
-    │                  │     Agentes      │
-    │                  │ (puxirum feed)   │
-    └──────────────────┴──────────────────┘
+    │   Claude Code    │       (TML)      │
+    │  (you, /puxirum) ├─────────┬────────┤
+    │                  │ Puxirum │Agentes │
+    │                  │(run.log)│ (feed) │
+    └──────────────────┴─────────┴────────┘
 
-`puxirum run`, started in a tuios pane, is the left pane. `open` names its
-workspace, shows the dashboard to its right and splits the dashboard to start the
-feed below it. While the run works, `refresh` patches the dashboard's state (only
-what changed is drawn again), keeps a short note on each pane and puts a job that
-starts waiting for a person in their Inbox, once.
+The left pane is wherever `puxirum run` (or `puxirum workbench`) was started:
+normally a Claude Code conversation that started it in the background through
+the /puxirum skill, or a plain shell. `open` names its workspace, shows the
+dashboard to its right and splits the dashboard into the core's log below it and
+the feed beside that. While the run works, `refresh` patches the dashboard's
+state (only what changed is drawn again), keeps a short note on the left pane and
+puts a job that starts waiting for a person in their Inbox, once.
 
-Everything here is a mirror of the job files. The ids of the panes are kept in
-`state/workbench.json` so the next run reuses them; a pane the person closed is
-opened again. A tuios call that fails is logged and never stops the run.
+Everything here is a mirror of the job files and the run log. The ids of the
+panes are kept in `state/workbench.json` so the next run reuses them; a pane the
+person closed is opened again. A tuios call that fails is logged and never stops
+the run.
 """
 
 from __future__ import annotations
@@ -49,6 +52,7 @@ STAGE_NAMES = {
     "rejected": "rejeitado",
 }
 ALERT_STAGES = ("needs-human", "needs-info")
+PANES = ("panel", "log", "feed")
 MAX_JOBS = 50
 
 
@@ -155,6 +159,16 @@ def _ops(state: dict[str, Any]) -> list[dict[str, Any]]:
     return [{"op": "replace", "path": f"/{k}", "value": v} for k, v in state.items()]
 
 
+def run_log(store: Store) -> Path:
+    """Where `puxirum run` keeps its log, for the workbench's log pane."""
+    return store.root / "run.log"
+
+
+def log_command(store: Store) -> str:
+    """The shell line that turns the new pane into the core's log."""
+    return f"exec tail -n 200 -F {shlex.quote(str(run_log(store)))}\n"
+
+
 def feed_command(repo: Path) -> str:
     """The shell line that turns the new pane into the feed, run from the repo."""
     package_root = str(Path(__file__).resolve().parents[1])
@@ -176,7 +190,8 @@ class Workbench:
         t = self.tuios
         workspace = t.workspace_of(t.pane)
         t.name_workspace(workspace, WORKSPACE_NAME)
-        others = [w for w in t.windows_on(workspace) if w not in (t.pane, self.ids.get("panel"), self.ids.get("feed"))]
+        ours = [self.ids.get(k) for k in PANES]
+        others = [w for w in t.windows_on(workspace) if w != t.pane and w not in ours]
         if others:
             self.log(f"workbench: {len(others)} other pane(s) share this workspace; the layout may differ")
         surface = self.ids.get("surface")
@@ -185,19 +200,28 @@ class Workbench:
                 t.replace(surface, dashboard())
             except TuiosError:
                 # Only the pane that opened a surface may change it: this is an earlier run's dashboard.
-                for old in (self.ids.get("panel"), self.ids.get("feed")):
+                for old in ours:
                     if old:
                         t.close_window(old)
                 surface = None
         if not (surface and t.surface_alive(surface)):
             surface, self.ids["panel"] = t.open_surface(dashboard(), workspace, "Painel")
             self.ids["surface"] = surface
-            self.ids.pop("feed", None)  # the feed goes under the new dashboard
+            self.ids.pop("log", None)  # the panes below go under the new dashboard
+            self.ids.pop("feed", None)
         state = snapshot(self.store, self.cfg)
         t.patch(surface, _ops(state))
-        feed = self.ids.get("feed")
-        if not feed or t.window(feed) is None:
-            self.ids["feed"] = t.split(self.ids["panel"], "down", "Agentes")
+        below = [self.ids.get("log"), self.ids.get("feed")]
+        if not all(w and t.window(w) is not None for w in below):
+            # Both go together: one alone would not sit where it belongs.
+            for old in below:
+                if old:
+                    t.close_window(old)
+            run_log(self.store).parent.mkdir(parents=True, exist_ok=True)
+            run_log(self.store).touch()
+            self.ids["log"] = t.split(self.ids["panel"], "down", "Puxirum")
+            t.send_text(self.ids["log"], log_command(self.store))
+            self.ids["feed"] = t.split(self.ids["log"], "right", "Agentes")
             t.send_text(self.ids["feed"], feed_command(self.store.repo))
         self._last = state
         self._save()

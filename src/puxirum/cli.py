@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from puxirum.machine import Refused
 from puxirum.prompts import PromptError, Prompts
 from puxirum.store import Store, StoreError
 from puxirum.tuios import Tuios, TuiosError
-from puxirum.workbench import Workbench
+from puxirum.workbench import Workbench, run_log
 from puxirum.world import World
 
 REFRESH_S = 2.0
@@ -40,7 +41,21 @@ def default_engine(cwd: Path) -> Engine:
     runner = ClaudeRunner(
         prompt_for=Prompts(cfg, repo), command=cfg.agent_command, timeout_s=cfg.agent_timeout_s, budget_usd=cfg.budgets
     )
-    return Engine(world, runner, log=lambda msg: print(msg, file=sys.stderr))
+    return Engine(world, runner, log=logger(run_log(world.store)))
+
+
+def logger(path: Path) -> Callable[[str], None]:
+    """The core's log: to stderr, and to the run log the workbench shows."""
+    lock = threading.Lock()
+
+    def log(msg: str) -> None:
+        print(msg, file=sys.stderr)
+        with lock, contextlib.suppress(OSError):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(f"{time.strftime('%H:%M:%S')}  {msg}\n")
+
+    return log
 
 
 def default_workbench(engine: Engine) -> Workbench | None:
@@ -52,7 +67,7 @@ def default_workbench(engine: Engine) -> Workbench | None:
         return None
     if t is None:
         return None
-    return Workbench(t, engine.store, engine.cfg, log=lambda msg: print(msg, file=sys.stderr))
+    return Workbench(t, engine.store, engine.cfg, log=engine.log)
 
 
 @contextlib.contextmanager
@@ -133,6 +148,7 @@ def main(
     p_run.add_argument("issue", nargs="?", type=int, help="only this issue")
     p_run.add_argument("--no-workbench", action="store_true", help="don't open the tuios workbench")
     sub.add_parser("status", help="what each issue and job is doing")
+    sub.add_parser("workbench", help="open the tuios workbench beside this pane without running")
     p_feed = sub.add_parser("feed", help="follow every running agent, one line per step")
     p_feed.add_argument("--once", action="store_true", help="print what is new and exit")
     p_rep = sub.add_parser("report", help="costs and times by job, role, model and run")
@@ -159,8 +175,11 @@ def main(
         engine = make_engine(cwd)
         if args.command == "run":
             bench = (make_workbench or default_workbench)(engine) if not args.no_workbench else None
-            with refreshing(bench):
-                summary = engine.run(only=args.issue)
+            with engine.store.run_lock():
+                engine.log(f"run started{f' for #{args.issue}' if args.issue else ''}")
+                with refreshing(bench):
+                    summary = engine.run(only=args.issue)
+                engine.log(f"run finished: {summary['agents']} agent runs, ${summary['cost_usd']:.2f}")
             _status(engine, out)
             print(
                 f"\nThis run: {summary['agents']} agent runs, ${summary['cost_usd']:.2f}, "
@@ -169,6 +188,15 @@ def main(
             )
         elif args.command == "status":
             _status(engine, out)
+        elif args.command == "workbench":
+            bench = (make_workbench or default_workbench)(engine)
+            if bench is None:
+                print("puxirum: the workbench needs a tuios pane", file=sys.stderr)
+                return 1
+            # A run that is working keeps its own workbench: opening one here would fight it.
+            with engine.store.run_lock():
+                bench.open()
+            print("workbench open; `puxirum run` keeps it up to date", file=out)
         elif args.command == "feed":
             tty = out.isatty()
             live = Feed(engine.store, colour=tty, width=lambda: shutil.get_terminal_size().columns if tty else None)
@@ -186,7 +214,7 @@ def main(
         elif args.command == "reject":
             job = engine.reject(args.job, _text(args.message))
             print(f"{job.id}: rejected", file=out)
-    except (config.ConfigError, PromptError, Refused, StoreError, ValueError) as e:
+    except (config.ConfigError, PromptError, Refused, StoreError, TuiosError, ValueError) as e:
         print(f"puxirum: {e}", file=sys.stderr)
         return 1
     return 0

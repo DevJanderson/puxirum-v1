@@ -18,7 +18,7 @@ puxirum = "puxirum.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-puxirum = ["roles/*.md", "roles/lenses/*.md"]
+puxirum = ["roles/*.md", "roles/lenses/*.md", "skills/*/SKILL.md"]
 
 [tool.ruff]
 line-length = 120
