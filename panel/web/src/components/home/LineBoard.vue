@@ -49,19 +49,16 @@ const summary = computed(() => {
 
 <template>
   <section
-    class="relative flex min-h-0 flex-col overflow-hidden rounded-xl border bg-canvas bg-[radial-gradient(var(--dot)_1px,transparent_1.3px)] bg-[length:20px_20px]"
+    class="relative flex min-h-0 flex-col overflow-hidden rounded-xl bg-canvas bg-[radial-gradient(var(--dot)_1px,transparent_1.3px)] bg-[length:20px_20px]"
     aria-label="A linha"
   >
-    <div class="flex h-14 flex-none items-center gap-3 border-b border-hairline bg-card pr-3.5 pl-5">
-      <div class="flex min-w-0 items-baseline gap-2.5">
-        <b class="text-[15px] font-semibold whitespace-nowrap">A linha</b>
-        <span class="truncate text-xs text-faint" :title="summary">{{ summary }}</span>
-      </div>
+    <div class="flex h-14 flex-none items-center gap-3 pr-3.5 pl-5">
+      <span class="min-w-0 truncate text-xs text-foreground" :title="summary">{{ summary }}</span>
       <div class="ml-auto flex flex-none items-center gap-3.5 text-xs whitespace-nowrap text-muted-foreground">
-        <span class="inline-flex items-center gap-1.5"><i class="size-2 rounded-full bg-agent" />agente</span>
-        <span class="inline-flex items-center gap-1.5"><i class="size-2 rounded-full bg-faint" />núcleo</span>
+        <span class="inline-flex items-center gap-1.5"><i class="size-2 rounded-full bg-agent" />Agente</span>
+        <span class="inline-flex items-center gap-1.5"><i class="size-2 rounded-full bg-faint" />Núcleo</span>
         <span class="inline-flex items-center gap-1.5">
-          <svg width="22" height="8" aria-hidden="true"><path d="M1 4h20" stroke-dasharray="4 3" class="stroke-loop" stroke-width="1.5" /></svg>volta
+          <svg width="22" height="8" aria-hidden="true"><path d="M1 4h20" stroke-dasharray="4 3" class="stroke-loop" stroke-width="1.5" /></svg>Volta
         </span>
       </div>
       <span class="mx-0.5 h-5 w-px bg-hairline" />
@@ -82,7 +79,7 @@ const summary = computed(() => {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <div class="inline-flex h-[30px] overflow-hidden rounded-md border text-muted-foreground" role="group" aria-label="Zoom">
+      <div class="inline-flex h-[30px] overflow-hidden rounded-md border bg-card text-muted-foreground shadow-xs" role="group" aria-label="Zoom">
         <button class="flex w-[30px] items-center justify-center hover:bg-accent hover:text-foreground" aria-label="Diminuir" @click="view.zoomOut({ duration: 150 })">
           <Minus class="size-3.5" />
         </button>

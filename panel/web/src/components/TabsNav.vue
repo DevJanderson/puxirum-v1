@@ -19,7 +19,7 @@ useResizeObserver(nav, () => {
 </script>
 
 <template>
-  <!-- It sits in the header, whose bottom line the active tab's underline covers. On a narrow window the tabs scroll
+  <!-- It sits in the header; the active tab shows by its weight and colour. On a narrow window the tabs scroll
        sideways, and the right edge fades so the cut-off ones show there are more. -->
   <nav
     ref="nav"
@@ -32,7 +32,7 @@ useResizeObserver(nav, () => {
       <RouterLink
         :to="item.to"
         exact-active-class="is-active"
-        class="relative inline-flex items-center gap-1 px-[5px] text-[13px] whitespace-nowrap text-muted-foreground hover:text-foreground [&.is-active]:font-medium [&.is-active]:text-foreground [&.is-active]:after:absolute [&.is-active]:after:inset-x-2 [&.is-active]:after:bottom-0 [&.is-active]:after:h-0.5 [&.is-active]:after:rounded [&.is-active]:after:bg-foreground"
+        class="relative inline-flex items-center gap-1 px-[5px] text-[13px] whitespace-nowrap text-muted-foreground hover:text-foreground [&.is-active]:font-medium [&.is-active]:text-foreground"
       >
         <component :is="item.tab.icon" class="size-3.5 flex-none" :stroke-width="1.6" />
         {{ item.tab.name }}

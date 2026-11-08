@@ -25,14 +25,17 @@ watchEffect(() => {
 
 /** Light, dark or the system's, remembered in this browser. */
 export function useTheme() {
-  function toggle() {
-    const dark = document.documentElement.classList.contains('dark')
-    choice.value = dark ? 'light' : 'dark'
+  function set(next: Choice) {
+    choice.value = next
     try {
-      localStorage.setItem(KEY, choice.value)
+      if (next === 'system') localStorage.removeItem(KEY)
+      else localStorage.setItem(KEY, next)
     } catch {
       /* private window: the choice lasts until the page closes */
     }
   }
-  return { choice, toggle }
+  function toggle() {
+    set(document.documentElement.classList.contains('dark') ? 'light' : 'dark')
+  }
+  return { choice, set, toggle }
 }

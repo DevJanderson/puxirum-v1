@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useElementSize, useLocalStorage } from '@vueuse/core'
-import { PanelLeftClose, PanelLeftOpen, TerminalSquare } from 'lucide-vue-next'
+import { GripVertical, PanelLeftClose, PanelLeftOpen, TerminalSquare } from 'lucide-vue-next'
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import PuxirumMark from '@/components/PuxirumMark.vue'
 import { useProject } from '@/composables/useProject'
@@ -21,9 +21,11 @@ function startDrag(down: PointerEvent) {
   const from = { x: down.clientX, width: width.value }
   handle.setPointerCapture(down.pointerId)
   dragging.value = true
+  document.body.classList.add('cursor-col-resize', 'select-none')
   const move = (e: PointerEvent) => (width.value = clamp(from.width + e.clientX - from.x))
   const stop = () => {
     dragging.value = false
+    document.body.classList.remove('cursor-col-resize', 'select-none')
     handle.removeEventListener('pointermove', move)
     handle.removeEventListener('pointerup', stop)
     handle.removeEventListener('pointercancel', stop)
@@ -56,11 +58,11 @@ const tone = (who: string) => {
 </script>
 
 <template>
-  <!-- Folded: a small rail, only as tall as what it holds, close to the edge, with the way back open and a pulse
-       while agents work. -->
+  <!-- Folded: a small rail, only as tall as what it holds, 12px from the edge and from the page, with the way back
+       open and a pulse while agents work. -->
   <aside
     v-if="collapsed"
-    class="mt-3 -mr-3 ml-3 flex w-12 flex-none flex-col items-center gap-2 self-start rounded-xl border bg-card py-2"
+    class="mx-3 mt-3 flex w-12 flex-none flex-col items-center gap-2 self-start rounded-xl border bg-card py-2"
     aria-label="Agentes ao vivo"
   >
     <button
@@ -93,31 +95,10 @@ const tone = (who: string) => {
 
   <aside
     v-else
-    class="relative my-3 -mr-3 ml-3 flex flex-none flex-col overflow-hidden rounded-xl border bg-card"
-    :class="dragging && 'select-none'"
+    class="my-3 ml-3 flex flex-none flex-col overflow-hidden rounded-xl border bg-card"
     :style="{ width: `${clamp(width)}px` }"
     aria-label="Agentes ao vivo"
   >
-    <div
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Largura dos agentes"
-      :aria-valuenow="clamp(width)"
-      :aria-valuemin="WIDTH.min"
-      :aria-valuemax="WIDTH.max"
-      tabindex="0"
-      title="Arraste para mudar a largura; dois cliques voltam ao padrão"
-      class="group absolute inset-y-0 right-0 z-10 w-2 cursor-col-resize touch-none outline-none"
-      @pointerdown.prevent="startDrag"
-      @dblclick="width = WIDTH.start"
-      @keydown.left.prevent="width = clamp(width - WIDTH.step)"
-      @keydown.right.prevent="width = clamp(width + WIDTH.step)"
-    >
-      <span
-        class="absolute inset-y-3 right-0.5 w-0.5 rounded-full bg-primary opacity-0 transition-opacity group-hover:opacity-60 group-focus-visible:opacity-100"
-        :class="dragging && 'opacity-100'"
-      />
-    </div>
     <div class="flex h-14 flex-none items-center gap-2.5 border-b border-hairline pr-3 pl-5">
       <span class="flex size-8 flex-none items-center justify-center rounded-[9px] border border-hairline bg-canvas">
         <PuxirumMark :size="22" />
@@ -180,4 +161,31 @@ const tone = (who: string) => {
       </div>
     </div>
   </aside>
+
+  <!-- The gap to the page is the handle that sets the agents' width: a grip in the middle shows it can be dragged,
+       sideways, or moved with the arrow keys once focused; a double click restores the width. Its 16px are the whole
+       gap: the page has no left margin of its own, so nothing overlaps the handle. -->
+  <div
+    v-if="!collapsed"
+    role="separator"
+    aria-orientation="vertical"
+    aria-label="Largura dos agentes"
+    :aria-valuenow="clamp(width)"
+    :aria-valuemin="WIDTH.min"
+    :aria-valuemax="WIDTH.max"
+    tabindex="0"
+    title="Arraste para mudar a largura; dois cliques voltam ao padrão"
+    class="group flex w-4 flex-none cursor-col-resize touch-none items-center justify-center outline-none"
+    @pointerdown.prevent="startDrag"
+    @dblclick="width = WIDTH.start"
+    @keydown.left.prevent="width = clamp(width - WIDTH.step)"
+    @keydown.right.prevent="width = clamp(width + WIDTH.step)"
+  >
+    <span
+      class="flex h-8 w-3 items-center justify-center rounded-full text-faint transition-colors group-hover:bg-accent group-hover:text-foreground group-focus-visible:bg-accent group-focus-visible:text-foreground"
+      :class="dragging && 'bg-accent text-foreground'"
+    >
+      <GripVertical class="size-3.5" />
+    </span>
+  </div>
 </template>

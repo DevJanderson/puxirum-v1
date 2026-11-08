@@ -19,7 +19,7 @@ provideProject({ id, state, feed, connected })
     <FeedPanel />
     <div class="flex min-w-0 flex-1 flex-col overflow-y-auto">
       <AppHeader />
-      <div v-if="state?.problem" class="mt-4 mr-3 ml-6 rounded-lg border border-destructive/30 bg-danger-subtle px-4 py-2 text-sm text-danger-text">
+      <div v-if="state?.problem" class="mt-4 mr-3 rounded-lg border border-destructive/30 bg-danger-subtle px-4 py-2 text-sm text-danger-text">
         {{ state.problem }}
       </div>
       <RouterView />
