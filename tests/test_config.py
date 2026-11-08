@@ -49,6 +49,13 @@ class ParseTest(unittest.TestCase):
         p = {"input": 1, "output": 1, "cache_write_5m": 1, "cache_write_1h": 1, "cache_read": 1, "extra": 1}
         self.assertRefused({"prices": {"m": p}}, "prices.m.extra")
 
+    def test_agents_sandbox(self):
+        self.assertEqual((Config().sandbox, Config().network), (True, ()))
+        c = parse({"agents": {"sandbox": False, "network": ["registry.npmjs.org"], "sandbox_writes": ["~/.npm"]}})
+        self.assertEqual((c.sandbox, c.network, c.sandbox_writes), (False, ("registry.npmjs.org",), ("~/.npm",)))
+        self.assertRefused({"agents": {"sandbox": "yes"}}, "agents.sandbox")
+        self.assertRefused({"agents": {"network": "github.com"}}, "agents.network")
+
     def test_refuses_wrong_types_and_ranges(self):
         self.assertRefused({"queue": {"concurrency": True}}, "queue.concurrency")
         self.assertRefused({"queue": {"concurrency": 0}}, "queue.concurrency")

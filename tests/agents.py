@@ -11,7 +11,7 @@ from tests.gitrepo import git
 SUMMARY = "## Summary\n- one\n- two\n- three\n"
 SPEC = (
     "# {title}\n\n" + SUMMARY
-    + "\n## Context\nx\n\n## Requirements\nx\n\n## Acceptance criteria\n1. Works.\n\n## Out of scope\nx\n\n## Assumptions\nx\n"
+    + "\n## Context\nx\n\n## Requirements\nx\n\n## Acceptance criteria\n1. Works.\n\n## Edge cases\n- Very long titles.\n\n## Out of scope\nx\n\n## Assumptions\nx\n"
 )
 
 

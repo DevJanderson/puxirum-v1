@@ -94,7 +94,7 @@ def quote(text: str) -> str:
 SPEC_SECTIONS = ("Summary", "Context", "Requirements", "Acceptance criteria", "Out of scope", "Assumptions")
 
 
-def read(path: Path, kind: str) -> AgentFile:
+def read(path: Path, kind: str, *, require_edge_cases: bool = False) -> AgentFile:
     """Parse and validate the file at `path` as `kind`.
 
     Kinds: intake, spec, build, review, decision, checks.
@@ -107,6 +107,10 @@ def read(path: Path, kind: str) -> AgentFile:
     try:
         header = {} if kind == "spec" else parse_header(text)
         _RULES[kind](header, text)
+        if kind == "spec" and require_edge_cases:
+            edge = section(text, "Edge cases")
+            if edge is None or edge.lower().rstrip(".") in ("", "none"):
+                raise ValueError("a change with a user interface needs a non-empty `## Edge cases`")
         summary = _summary(text)
     except ValueError as e:
         raise MalformedFile(path, str(e)) from None

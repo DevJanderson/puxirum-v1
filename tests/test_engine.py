@@ -15,7 +15,7 @@ from tests.gitrepo import Repos, git
 CHECKS = "#!/usr/bin/env bash\nset -euo pipefail\nif [ -e bug.txt ]; then echo 'bug found' >&2; exit 1; fi\n"
 
 
-class EngineTest(unittest.TestCase):
+class EngineBase(unittest.TestCase):
     def setUp(self):
         self.r = Repos()
         self.repo = self.r.main
@@ -55,6 +55,8 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(job.pending, [])
         return job
 
+
+class EngineTest(EngineBase):
     # ---- the whole pipeline ---------------------------------------------------------------------
 
     def test_happy_path(self):
@@ -418,3 +420,104 @@ class EngineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AppTest(EngineBase):
+    """The core runs the dev server for the agents that must see the app."""
+
+    def app_engine(self, scripts, **cfg):
+        import socket
+        import sys
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            base = s.getsockname()[1] // 10 * 10
+        cfg.setdefault("app", {"command": [sys.executable, "-m", "http.server", "{port}", "--bind", "127.0.0.1"],
+                               "ready_timeout_s": 10})
+        cfg.setdefault("ports", {"base": min(base, 64000), "step": 10})
+        return self.engine(scripts, **cfg)
+
+    def looks(self, lens, shots=True, verdict="PASS"):
+        """A UI reviewer that opens the app and saves a screenshot."""
+        import urllib.request
+
+        def run(task):
+            url = task.vars["app_url"]
+            port = int(url.rsplit(":", 1)[1])
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5).read()
+            self.seen.append((task.name, url))
+            if shots:
+                evidence = task.job_dir / f"round-{task.vars['round']}" / "evidence"
+                evidence.mkdir(parents=True, exist_ok=True)
+                (evidence / f"{lens}-375.png").write_bytes(b"\x89PNG")
+            agents.reviewer((verdict,))(task)
+        return run
+
+    def setUp(self):
+        super().setUp()
+        self.seen = []
+
+    def ui_scripts(self, **kw):
+        return agents.happy(intake=agents.intake(surfaces="ui"), **{
+            "reviewer:ux": self.looks("ux"), "reviewer:ui": self.looks("ui"), **kw})
+
+    def test_ui_reviewers_and_builder_get_a_running_app(self):
+        n = self.issue()
+        seen_builder = []
+
+        def build(task):
+            seen_builder.append(task.vars.get("app_url"))
+            agents.builder()(task)
+        e = self.app_engine(self.ui_scripts(builder=build))
+        e.run()
+        job = self.assertMerged(n)
+        self.assertEqual(sorted(name for name, _ in self.seen), ["reviewer:ui", "reviewer:ux"])
+        self.assertEqual(len({url for _, url in self.seen}), 2, "each reviewer gets its own port")
+        self.assertTrue(seen_builder[0].startswith("http://localhost:"))
+        code = [t for t in self.runner.tasks if t.name == "reviewer:code"][0]
+        self.assertNotIn("app_url", code.vars, "the code reviewer doesn't need the app")
+        from puxirum import servers
+        for _, url in self.seen:
+            self.assertFalse(servers.listening(int(url.rsplit(":", 1)[1])), "servers are stopped afterwards")
+        self.assertTrue((self.store.job_dir(job.id) / "logs").glob("app-reviewer-ux-r1.log"))
+
+    def test_a_pass_without_screenshots_is_not_accepted(self):
+        n = self.issue()
+        e = self.app_engine(self.ui_scripts(**{"reviewer:ux": self.looks("ux", shots=False)}))
+        e.run()
+        job = self.job(n)
+        self.assertEqual(job.stage, "needs-human")
+        self.assertIn("PASS without screenshots", job.escalations[0]["reason"])
+        self.assertEqual(self.runner.names().count("reviewer:ux"), 2)
+
+    def test_screenshots_on_the_second_try_are_accepted(self):
+        n = self.issue()
+        e = self.app_engine(self.ui_scripts(**{"reviewer:ux": agents.sequence(self.looks("ux", shots=False),
+                                                                           self.looks("ux"))}))
+        e.run()
+        self.assertMerged(n)
+        ux = [t for t in self.runner.tasks if t.name == "reviewer:ux"]
+        self.assertEqual(len(ux), 2)
+        self.assertIn("without screenshots", ux[1].vars["retry"])
+
+    def test_an_app_that_does_not_start_escalates_with_its_log(self):
+        n = self.issue()
+        e = self.app_engine(self.ui_scripts(), app={"command": ["false", "{port}"], "ready_timeout_s": 5})
+        e.run()
+        job = self.job(n)
+        self.assertEqual(job.stage, "needs-human")
+        self.assertIn("the app didn't start for the builder agent", job.escalations[0]["reason"])
+        self.assertEqual(self.runner.names().count("builder"), 0, "no agent runs without its app")
+
+    def test_no_app_configured_means_no_server_and_no_evidence_rule(self):
+        n = self.issue()
+        self.engine(agents.happy(intake=agents.intake(surfaces="ui"))).run()
+        self.assertMerged(n)
+        self.assertFalse(any("app_url" in t.vars for t in self.runner.tasks))
+
+    def test_a_ui_spec_without_edge_cases_is_sent_back(self):
+        def thin_spec(task):
+            task.output.write_text(agents.SPEC.format(title="T").replace("## Edge cases\n- Very long titles.\n", "## Edge cases\nNone.\n"))
+        n = self.issue()
+        self.app_engine(self.ui_scripts(spec=agents.sequence(thin_spec, agents.spec()))).run()
+        self.assertMerged(n)
+        self.assertIn("Edge cases", self.runner.tasks[2].vars["retry"])

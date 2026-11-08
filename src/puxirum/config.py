@@ -19,6 +19,7 @@ RISKS = ("low", "medium", "high")
 REVIEWERS = ("code", "ux", "ui", "security")
 ROLES = ("intake", "spec", "builder", "approver")
 MERGE_METHODS = ("merge", "squash", "rebase")
+AGENT_ROLES = ("intake", "spec", "builder", "reviewer", "approver")
 PRICE_FIELDS = ("input", "output", "cache_write_5m", "cache_write_1h", "cache_read")
 
 
@@ -72,6 +73,20 @@ class Config:
         }
     )
     prices: dict[str, Price] = field(default_factory=dict)
+    agent_command: tuple[str, ...] = ("claude",)
+    agent_timeout_s: int = 3600
+    sandbox: bool = True
+    network: tuple[str, ...] = ()
+    sandbox_writes: tuple[str, ...] = ()
+    app_setup: tuple[str, ...] = ()
+    app_command: tuple[str, ...] = ()
+    app_ready_timeout_s: int = 60
+    baseline_label: str = "baseline"
+    baseline_usd: float | None = None
+    baseline_minutes: float | None = None
+    budgets: dict[str, float] = field(
+        default_factory=lambda: {"intake": 0.5, "spec": 1.0, "builder": 4.0, "reviewer": 1.5, "approver": 1.0}
+    )
 
     def is_protected(self, path: str) -> bool:
         """True when a repo-relative path matches one of the protected patterns."""
@@ -101,6 +116,9 @@ def parse(data: dict[str, Any]) -> Config:
     gate = r.table("gate")
     ports = r.table("ports")
     routing = r.table("routing")
+    agents = r.table("agents")
+    app = r.table("app")
+    report = r.table("report")
     d = Config()
 
     values: dict[str, Any] = {
@@ -124,13 +142,27 @@ def parse(data: dict[str, Any]) -> Config:
         "risk_reviewers": _reviewer_tables(routing.table("risk"), d.risk_reviewers, required=RISKS),
         "surface_reviewers": _reviewer_tables(routing.table("surfaces"), d.surface_reviewers, required=()),
         "prices": _prices(r.table("prices")),
+        "agent_command": tuple(agents.strings("command", list(d.agent_command))),
+        "agent_timeout_s": agents.integer("timeout_s", d.agent_timeout_s, minimum=60),
+        "sandbox": agents.boolean("sandbox", d.sandbox),
+        "network": tuple(agents.strings("network", list(d.network))),
+        "sandbox_writes": tuple(agents.strings("sandbox_writes", list(d.sandbox_writes))),
+        "budgets": _budgets(agents.table("budget_usd"), d.budgets),
+        "app_setup": tuple(app.strings("setup", list(d.app_setup), allow_empty=True)),
+        "app_command": tuple(app.strings("command", list(d.app_command), allow_empty=True)),
+        "app_ready_timeout_s": app.integer("ready_timeout_s", d.app_ready_timeout_s, minimum=1),
+        "baseline_label": report.string("baseline_label", d.baseline_label),
+        "baseline_usd": report.number("baseline_usd") if "baseline_usd" in report.data else None,
+        "baseline_minutes": report.number("baseline_minutes") if "baseline_minutes" in report.data else None,
     }
-    for reader in (r, queue, git, gate, ports, routing):
+    for reader in (r, queue, git, gate, ports, routing, agents, app, report):
         reader.refuse_unknown()
 
     labels = [values["queue_label"], values["needs_info_label"], values["needs_human_label"]]
     if len(set(labels)) != len(labels):
         raise ConfigError("queue: label, needs_info_label and needs_human_label must all differ")
+    if values["app_command"] and not any("{port}" in a for a in values["app_command"]):
+        raise ConfigError("app.command: must contain {port}, so each job's server gets its own port")
     if not values["branch_prefix"].endswith("/"):
         raise ConfigError("git.branch_prefix: must end with '/'")
     return Config(**values)
@@ -145,6 +177,15 @@ def _reviewer_tables(r: _Reader, default: dict[str, dict[str, str]], required: t
     missing = [k for k in required if k not in out]
     if missing:
         raise ConfigError(f"{r.path}: missing {', '.join(missing)}")
+    return out
+
+
+def _budgets(r: _Reader, default: dict[str, float]) -> dict[str, float]:
+    out = dict(default)
+    for role in r.data:
+        if role not in AGENT_ROLES:
+            raise ConfigError(f"{r.path}.{role}: unknown role; expected one of {', '.join(AGENT_ROLES)}")
+        out[role] = r.number(role)
     return out
 
 
@@ -210,6 +251,14 @@ class _Reader:
             raise ConfigError(f"{self._key(key)}: must be between {minimum} and {maximum}")
         return value
 
+    def boolean(self, key: str, default: bool) -> bool:
+        value = self._get(key)
+        if value is None:
+            return default
+        if not isinstance(value, bool):
+            raise ConfigError(f"{self._key(key)}: must be true or false")
+        return value
+
     def number(self, key: str) -> float:
         value = self._get(key)
         if value is None:
@@ -218,7 +267,7 @@ class _Reader:
             raise ConfigError(f"{self._key(key)}: must be a non-negative number")
         return float(value)
 
-    def strings(self, key: str, default: list[str]) -> list[str]:
+    def strings(self, key: str, default: list[str], allow_empty: bool = False) -> list[str]:
         value = self._get(key)
         if value is None:
             return default

@@ -83,6 +83,8 @@ class DoctorTest(unittest.TestCase):
         self.assertEqual(got["gh CLI"][0], "fail")
         self.assertEqual(got["claude not found"][0], "warn")
         self.assertEqual(got["tuios not found"][0], "warn")
+        self.assertEqual(got["builder sandbox"][0], "fail")
+        self.assertEqual(self.levels()["builder sandbox"], ("ok", "bwrap and socat found"))
 
         def offline():
             raise ForgeError("gh: not logged in")

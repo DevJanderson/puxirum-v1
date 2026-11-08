@@ -19,23 +19,27 @@ Rules the engine keeps:
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
+import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from puxirum import files, gate
+from puxirum import files, gate, report, servers
 from puxirum.files import MalformedFile
 from puxirum.forge import ForgeError
 from puxirum.git import GitError
 from puxirum.machine import ACTIVE, TERMINAL, WAITING, Refused, advance, resume_stage
-from puxirum.runner import AgentTask, Runner
-from puxirum.store import Job
+from puxirum.runner import AgentResult, AgentTask, Runner
+from puxirum.store import Job, now
 from puxirum.world import EffectError, World, replied_since_question
 
 MAX_STEPS = 200
 PORT_SLOTS = 100
+IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+APP_LENSES = ("ux", "ui")
 
 
 class Escalate(Exception):
@@ -62,6 +66,7 @@ class Engine:
         self.forge = world.forge
         self.git = world.git
         self.log = log or (lambda msg: None)
+        self.run_id: str | None = None
 
     # ---- the queue ---------------------------------------------------------------------------
 
@@ -117,8 +122,18 @@ class Engine:
         rows += other
         return [r for r in rows if only is None or r.issue == only]
 
-    def run(self, only: int | None = None, max_ticks: int = 100) -> None:
-        """Work until every job waits, finishes or can't move."""
+    def run(self, only: int | None = None, max_ticks: int = 100) -> dict:
+        """Work until every job waits, finishes or can't move. Returns the run's summary."""
+        started = now()
+        self.run_id = f"{started.replace('-', '').replace(':', '')}-{os.getpid()}"
+        try:
+            self._ticks(only, max_ticks)
+        finally:
+            summary = report.write_run(self.store, self.run_id, started, only)
+            self.run_id = None
+        return summary
+
+    def _ticks(self, only: int | None, max_ticks: int) -> None:
         for _ in range(max_ticks):
             progressed = self.sync_merged()
             work = []
@@ -254,6 +269,11 @@ class Engine:
         for lens in job.reviewers:
             f = self._read(job, f"review-{lens}@{job.seq}", f"round-{job.round}/review-{lens}.md", "review")
             if f is None:
+                invalid = True
+            elif f.header["VERDICT"] == "PASS" and self._missing_evidence(job, lens):
+                self._retry(job, f"review-{lens}@{job.seq}", f"round-{job.round}/review-{lens}.md",
+                            f"VERDICT: PASS without screenshots: save them in {self._round_dir(job) / 'evidence'} "
+                            f"with names starting `{lens}-`")
                 invalid = True
             elif f.header["VERDICT"] == "CHANGES":
                 changes.append(lens)
@@ -422,13 +442,17 @@ class Engine:
             cwd=cwd, job_dir=d, output=out, vars=self._vars(job, role, lens, attempts),
         )
         self.log(f"{job.id}: running {task.name} ({task.model}), attempt {attempts + 1}")
-        result = self.runner.run(task)
-        self.store.event(job.id, "agent", key=key, role=role, lens=lens, model=task.model,
-                         exit_code=result.exit_code, seconds=round(result.seconds, 3), cost_usd=result.cost_usd)
         error = None
-        if result.exit_code != 0:
+        try:
+            result = self._run_with_app(job, task)
+        except servers.ServerError as e:
+            error = f"the app didn't start for the {task.name} agent: {e}"
+            result = AgentResult(exit_code=1, seconds=0.0)
+        self.store.event(job.id, "agent", run=self.run_id, key=key, role=role, lens=lens, model=task.model,
+                         exit_code=result.exit_code, seconds=round(result.seconds, 3), cost_usd=result.cost_usd)
+        if error is None and result.exit_code != 0:
             error = f"the {task.name} agent exited with {result.exit_code}"
-        elif _fingerprint(out) == before or before is not None and not out.exists():
+        elif error is None and (_fingerprint(out) == before or before is not None and not out.exists()):
             error = f"the {task.name} agent didn't write {output}"
 
         def change(j: Job) -> None:
@@ -444,6 +468,29 @@ class Engine:
             self.log(f"{job.id}: {error}")
         return True
 
+    def _needs_app(self, job: Job, task: AgentTask) -> bool:
+        if not self.cfg.app_command:
+            return False
+        ui = "ui" in ((job.intake or {}).get("surfaces") or [])
+        return (task.role == "builder" and ui) or (task.role == "reviewer" and task.lens in APP_LENSES)
+
+    def _run_with_app(self, job: Job, task: AgentTask) -> AgentResult:
+        """Run the agent, with the app's dev server up for the agents that must see it."""
+        if not self._needs_app(job, task):
+            return self.runner.run(task)
+        log = task.job_dir / "logs" / f"app-{task.name.replace(':', '-')}-r{job.round}.log"
+        port = int(task.vars["port"])
+        with servers.running(self.cfg.app_command, task.cwd, port, log, setup=self.cfg.app_setup,
+                             ready_timeout_s=self.cfg.app_ready_timeout_s, env=self._env(job)) as url:
+            self.log(f"{job.id}: app for {task.name} at {url}")
+            return self.runner.run(dataclasses.replace(task, vars={**task.vars, "app_url": url}))
+
+    def _missing_evidence(self, job: Job, lens: str) -> bool:
+        if not self.cfg.app_command or lens not in APP_LENSES:
+            return False
+        evidence = self._round_dir(job) / "evidence"
+        return not any(p.suffix.lower() in IMAGE_SUFFIXES for p in evidence.glob(f"{lens}-*"))
+
     def _vars(self, job: Job, role: str, lens: str | None, attempts: int) -> dict:
         d = self.store.job_dir(job.id)
         feedback = sorted(d.glob("feedback-*.md"))
@@ -454,6 +501,15 @@ class Engine:
             "port": port, "worktree": str(self._worktree(job)), "main_checkout": str(self.world.repo),
             "feedback": str(feedback[-1]) if feedback and job.feedback else None,
             "retry": job.last_error if attempts else None,
+            "attempt": attempts + 1,
+            "risk": (job.intake or {}).get("risk"),
+            "surfaces": (job.intake or {}).get("surfaces", []),
+            "checks": str(self.world.repo / self.cfg.checks),
+            "checks_timeout_s": self.cfg.gate_timeout_s,
+            "writable": [str(self._round_dir(job) / "evidence")] if role == "reviewer" else [],
+            "sandbox": self.cfg.sandbox,
+            "network": list(self.cfg.network),
+            "sandbox_writes": list(self.cfg.sandbox_writes),
         }
 
     def _feedback_ready(self, job: Job) -> bool:

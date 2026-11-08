@@ -329,6 +329,15 @@ Dois modos, decididos na Fase 1 com um teste:
 - Agentes só enviam o próprio branch. Só o núcleo mescla. O Puxirum nunca faz deploy.
 - Cada janela de agente recebe **permissões mínimas** do tuios (detalhado na seção 11).
 - Segredos não entram em prompts nem em arquivos de estado.
+- Os agentes não recebem credenciais: o ambiente perde `SSH_AUTH_SOCK`, tokens do `gh` e auxiliares de credencial do
+  git, e `GIT_SSH_COMMAND=false`. Regras de permissão sobre comandos não bastam (um teste real mostrou que
+  `env -u GIT_SSH_COMMAND git ls-remote` ainda autenticava com as chaves de `~/.ssh`). Por isso o shell do builder roda
+  no **sandbox do sistema operacional do Claude Code** (bubblewrap no Linux), com `failIfUnavailable` e sem saída do
+  sandbox: não lê `~/.ssh` e outros segredos, não acessa a rede além de `[agents] network` (padrão: nenhum host) e só
+  escreve na worktree e nas partes do `.git` que um commit no próprio branch exige. Nunca em `.git/hooks` ou
+  `.git/config`.
+- O git do núcleo roda com `core.hooksPath=/dev/null`, para que nada que um agente deixe no repositório seja executado
+  fora do sandbox.
 
 ## 14. Configuração
 
@@ -337,6 +346,8 @@ roteamento de revisores e modelos por risco e superfície, caminhos protegidos, 
 desenvolvimento e workspace do tuios para os servidores.
 
 Limites de robustez em `[queue]`: `agent_attempts` (padrão 2) é quantas vezes um agente roda antes de o job escalar, e `effect_attempts` (padrão 3) é quantas falhas um efeito aguenta antes de ser abandonado com escalada. Cada job recebe uma faixa de portas `ports.base + ((n - 1) mod 100) × ports.step`: o builder usa a primeira, e cada revisor a seguinte.
+
+O servidor de desenvolvimento vem de `[app]`: `setup` (ex.: `npm ci`), `command` (precisa conter `{port}`) e `ready_timeout_s`. O núcleo o sobe para o builder (em mudanças de interface) e para cada revisor de UX e UI, cada um na sua porta, espera a porta responder (IPv4 ou IPv6), entrega a URL e derruba o grupo de processos no fim. Com `[app]` configurado, um `PASS` de UX ou UI sem captura `ux-*`/`ui-*` em `round-N/evidence/` é recusado e o revisor roda de novo.
 
 Uma execução de agente só conta se ele sair com 0 **e** reescrever o arquivo de saída (o núcleo compara `mtime` e hash antes e depois). Isso impede que um `build.md` `READY` da rodada anterior seja aceito como se fosse novo.
 
@@ -373,7 +384,7 @@ Legenda: ✅ F1 = coberto por teste na Fase 1; 🟡 = a parte do núcleo está c
 | B8 | Issue citada como dado, com aviso | `issue.md` todo citado e com o aviso | ✅ F1 | test_render_quotes_everything… |
 | B9 | Só comentários do autor e do operador | Comentário de terceiro não aparece em `issue.md` | ✅ F1 | test_render_quotes…, test_needs_info… |
 | B10 | Comentários do Puxirum marcados | O marcador é reconhecido e não conta como resposta | ✅ F1 | test_replied_since_question (marcador + operador) |
-| B11 | Intake sem shell | O executor não concede shell ao intake | ⏳ F2 | executor sem shell para o intake |
+| B11 | Intake sem shell | O executor não concede shell ao intake | ✅ F2 | test_intake_has_no_shell_and_writes_only_its_file; teste real (Bash indisponível, escrita fora do próprio arquivo negada) |
 | **C** | **Estados e transições** | | | |
 | C12 | Os 11 estados | Enumeração completa no núcleo | ✅ F1 | test_machine |
 | C13 | Tabela de transições; movimento ilegal recusado com motivo | Teste para cada transição ilegal | ✅ F1 | test_every_illegal_transition_is_refused |
@@ -390,16 +401,16 @@ Legenda: ✅ F1 = coberto por teste na Fase 1; 🟡 = a parte do núcleo está c
 | **E** | **Roteamento** | | | |
 | E23 | Revisores e modelos por risco e superfície, via configuração | Tabela de casos → conjunto esperado | ✅ F1 | test_route |
 | **F** | **Spec** | | | |
-| F24 | Spec com contexto, requisitos, critérios verificáveis, fora de escopo, premissas | Validação das seções | 🟡 F1/F2 | contrato validado (test_spec); conteúdo depende do prompt |
-| F25 | Escopo do intake obrigatório | Prompt e revisão conferem | ⏳ F2 | prompt do spec e do revisor |
+| F24 | Spec com contexto, requisitos, critérios verificáveis, fora de escopo, premissas | Validação das seções | ✅ F1/F2 | contrato validado (test_spec); prompt `roles/spec.md` (test_every_example_in_a_prompt_passes_the_contract) |
+| F25 | Escopo do intake obrigatório | Prompt e revisão conferem | ✅ F2 | o spec trata o escopo do intake como obrigatório, o revisor só pede mudanças dentro dele e o approver confere (test_role_specifics) |
 | **G** | **Build** | | | |
 | G26 | Worktree e branch próprios a partir do `main` remoto | Criados na transição para `spec` | ✅ F1 | test_accept_drains_into_a_comment_and_a_worktree |
-| G27 | Confere o branch, instala dependências, menor mudança, não toca protegidos | Gate falha se tocar protegido | 🟡 F1/F2 | protegidos no gate (F1); setup e menor mudança no prompt (F2) |
+| G27 | Confere o branch, instala dependências, menor mudança, não toca protegidos | Gate falha se tocar protegido | ✅ F1/F2 | protegidos no gate (F1); setup e menor mudança no prompt do builder (test_role_specifics) |
 | G28 | Commits pequenos; o **núcleo** envia o branch e abre o PR rascunho com `Closes #N` (o agente não toca no remoto) | Conferido no GitHub | ✅ F1 | test_push_and_ensure_pr, test_happy_path |
-| G29 | `build.md` com evidência por critério e log de rodadas | Validação das seções | 🟡 F1/F2 | contrato validado; evidência por critério no prompt |
+| G29 | `build.md` com evidência por critério e log de rodadas | Validação das seções | ✅ F1/F2 | contrato validado; evidência por critério no prompt (test_every_example_in_a_prompt_passes_the_contract) |
 | G30 | `BLOCKED` com motivo | Leva a `needs-human` com o motivo | ✅ F1 | test_blocked_builder_escalates |
-| G31 | Rodadas seguintes com contexto do histórico | Builder recebe os arquivos da rodada anterior | 🟡 F1/F2 | feedback e retry passados ao agente; uso no prompt |
-| G32 | Verificação antes de o builder terminar | O executor roda o `checks.sh` ao fim do builder | ⏳ F2 | verificação ao fim do builder, no executor |
+| G31 | Rodadas seguintes com contexto do histórico | Builder recebe os arquivos da rodada anterior | ✅ F2 | test_builder_round_two_after_a_gate_failure, test_builder_round_two_after_reviews, test_builder_after_feedback |
+| G32 | Verificação antes de o builder terminar | O executor roda o `checks.sh` ao fim do builder | ✅ F2 | hook Stop (test_hook, test_only_the_builder_gets_the_stop_hook); teste real: bloqueou, o builder corrigiu, passou |
 | G33 | Portas exclusivas por job | Dois jobs não colidem | ✅ F1 | test_agents_get_their_paths_and_models |
 | **H** | **Gate** | | | |
 | H34 | `checks.sh` da cópia principal | Branch que altera o `checks.sh` não muda o resultado | ✅ F1 | test_uses_the_main_checkouts_script |
@@ -409,15 +420,15 @@ Legenda: ✅ F1 = coberto por teste na Fase 1; 🟡 = a parte do núcleo está c
 | **I** | **Revisão** | | | |
 | I38 | Revisores em paralelo, esperando todos | Transição só com todos os vereditos | ✅ F1 | test_reviewers_run_in_parallel_and_all_must_pass |
 | I39 | Quatro olhares: código, UX, UI, segurança | Roteamento chama os corretos | ✅ F1 | test_route, test_reviewers_run_in_parallel… |
-| I40 | UX e UI usam o app no navegador, em computador e celular | Evidência anexada obrigatória | ⏳ F2/F3 | navegador e evidência obrigatória |
-| I41 | A partir da rodada 2, conferem os próprios apontamentos | Prompt recebe a revisão anterior | ⏳ F2 | prompt recebe a revisão anterior |
+| I40 | UX e UI usam o app no navegador, em computador e celular | Evidência anexada obrigatória | 🟡 F2/F3 | servidor pelo núcleo e capturas obrigatórias (test_a_pass_without_screenshots_is_not_accepted); janelas no tuios na F3 |
+| I41 | A partir da rodada 2, conferem os próprios apontamentos | Prompt recebe a revisão anterior | ✅ F2 | test_reviewer_sees_its_previous_review |
 | I42 | PASS/CHANGES, bloqueante separado de observação | Validação do formato | ✅ F1 | test_review (contrato) |
 | **J** | **Rodadas e escalada** | | | |
 | J43 | Limite de rodadas; escalada com motivo | Estourar leva a `needs-human` | ✅ F1 | test_rounds_run_out_then_feedback_grants_new_ones |
 | J44 | Retorno da pessoa registrado e renova o limite | `feedback-1.md` e novo bloco de rodadas | ✅ F1 | test_rounds_run_out_then_feedback_grants_new_ones |
 | J45 | Pessoa pode rejeitar job em espera; fecha PR e apaga branch | Conferido no GitHub | ✅ F1 | test_reject_an_escalated_job |
 | **K** | **Approver e merge** | | | |
-| K46 | Approver confere critérios, gate, revisões; escala casos sensíveis | Casos de exemplo | 🟡 F1/F2 | fluxos APPROVE/ESCALATE (F1); critérios no prompt |
+| K46 | Approver confere critérios, gate, revisões; escala casos sensíveis | Casos de exemplo | ✅ F1/F2 | fluxos APPROVE/ESCALATE (F1); critérios e casos sensíveis no prompt `roles/approver.md` (test_role_specifics) |
 | K47 | Sincroniza com `main`, gate de novo, envia, mescla pelo `gh`, apaga o branch | Conferido no GitHub | ✅ F1 | test_happy_path |
 | K48 | Conflito ou gate falho após sincronizar → `needs-human` | Teste com conflito montado | ✅ F1 | test_conflict_with_main…, test_gate_failure_after_syncing… |
 | K49 | Remove o worktree ao terminar | Pasta some em `merged`/`rejected` | ✅ F1 | assertMerged, test_reject_an_escalated_job |
@@ -425,10 +436,10 @@ Legenda: ✅ F1 = coberto por teste na Fase 1; 🟡 = a parte do núcleo está c
 | L50 | Cada arquivo começa com resumo de 3 a 5 tópicos | Validação do formato | ✅ F1 | test_summary_rules |
 | L51 | Painel com cartões, rodadas, risco, custo, tempo e arquivos | Painel no tuios (seção 11) | ⏳ F3 | painel no tuios |
 | L52 | Resumo em tabela no terminal | `puxirum status` | ✅ F1 | test_cli (status) |
-| L53 | Custo e tempo por job | `puxirum report` | 🟡 F1/F2 | custo e tempo por job registrados; `report` e custo real na F2 |
+| L53 | Custo e tempo por job | `puxirum report` | ✅ F2 | test_report (custo por papel e modelo, tempo ativo e de espera, execuções); custo real lido do `claude -p` |
 | L54 | Retomada total após morte do processo | Matar o processo no meio e retomar | ✅ F1 | test_agent_crash_resumes_in_a_new_engine |
 | **M** | **Garantias** | | | |
-| M55 | Nunca deploy; só o próprio branch; merge só pelo comando oficial; um PR por issue | Revisão de código e testes | 🟡 F1/F2 | núcleo faz push/PR/merge, push nunca forçado; permissões do agente na F2 |
+| M55 | Nunca deploy; só o próprio branch; merge só pelo comando oficial; um PR por issue | Revisão de código e testes | ✅ F2 | núcleo faz push/PR/merge, push nunca forçado; agentes sem credenciais e shell do builder no sandbox (test_claude; teste real: `ssh` e `git ls-remote` ao GitHub falham) |
 
 ## 17. Melhorias além da paridade
 
@@ -476,6 +487,8 @@ Na Fase 4, o Puxirum roda no `todo-factory` com **issues equivalentes** às do p
 
 - O formato dos registros do Claude Code, usado para medir custo, não é uma interface documentada e pode mudar.
 - Rodar `claude -p` em modo não interativo exige configurar permissões por papel com cuidado.
+- O sandbox depende do bubblewrap e do socat; sem eles, o builder falha de propósito (`failIfUnavailable`) e o
+  `doctor` precisa avisar.
 - Recursos do tuios evoluem rápido; o adaptador precisa conferir a versão.
 
 **Questões abertas:**

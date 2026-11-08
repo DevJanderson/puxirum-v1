@@ -8,17 +8,14 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-from puxirum import __version__, bootstrap, config
+from puxirum import __version__, bootstrap, config, report
+from puxirum.claude import ClaudeRunner
 from puxirum.engine import Engine
 from puxirum.forge import Forge, GhForge
 from puxirum.machine import Refused
+from puxirum.prompts import PromptError, Prompts
 from puxirum.store import Store, StoreError
 from puxirum.world import World
-
-
-class NoRunner:
-    def run(self, task):
-        raise SystemExit("puxirum: no agent runner yet; the Claude Code runner arrives in Phase 2")
 
 
 def repo_root(start: Path) -> Path:
@@ -32,7 +29,9 @@ def default_engine(cwd: Path) -> Engine:
     repo = repo_root(cwd)
     cfg = config.load(repo)
     world = World(repo, cfg, Store(repo), GhForge(cwd=repo))
-    return Engine(world, NoRunner(), log=lambda msg: print(msg, file=sys.stderr))
+    runner = ClaudeRunner(prompt_for=Prompts(cfg, repo), command=cfg.agent_command,
+                          timeout_s=cfg.agent_timeout_s, budget_usd=cfg.budgets)
+    return Engine(world, runner, log=lambda msg: print(msg, file=sys.stderr))
 
 
 def _text(arg: str | None) -> str:
@@ -69,6 +68,8 @@ def main(argv: list[str] | None = None, make_engine: Callable[[Path], Engine] = 
     p_run = sub.add_parser("run", help="work the queue until every job waits or finishes")
     p_run.add_argument("issue", nargs="?", type=int, help="only this issue")
     sub.add_parser("status", help="what each issue and job is doing")
+    p_rep = sub.add_parser("report", help="costs and times by job, role, model and run")
+    p_rep.add_argument("--json", action="store_true", help="machine-readable output")
     p_fb = sub.add_parser("feedback", help="send an escalated job back to work with your feedback")
     p_fb.add_argument("job", help="job id or issue number")
     p_fb.add_argument("-m", "--message", help="the feedback (default: read stdin)")
@@ -90,17 +91,22 @@ def main(argv: list[str] | None = None, make_engine: Callable[[Path], Engine] = 
             return 1 if any(c.level == "fail" for c in results) else 0
         engine = make_engine(cwd)
         if args.command == "run":
-            engine.run(only=args.issue)
+            summary = engine.run(only=args.issue)
             _status(engine, out)
+            print(f"\nThis run: {summary['agents']} agent runs, ${summary['cost_usd']:.2f}, "
+                  f"{report.duration(summary['wall_seconds'])}", file=out)
         elif args.command == "status":
             _status(engine, out)
+        elif args.command == "report":
+            text = report.as_json(engine.store) if args.json else report.render(engine.store, engine.cfg)
+            print(text, end="", file=out)
         elif args.command == "feedback":
             job = engine.feedback(args.job, _text(args.message))
             print(f"{job.id}: feedback recorded; now {job.stage}", file=out)
         elif args.command == "reject":
             job = engine.reject(args.job, _text(args.message))
             print(f"{job.id}: rejected", file=out)
-    except (config.ConfigError, Refused, StoreError, ValueError) as e:
+    except (config.ConfigError, PromptError, Refused, StoreError, ValueError) as e:
         print(f"puxirum: {e}", file=sys.stderr)
         return 1
     return 0

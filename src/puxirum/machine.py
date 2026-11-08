@@ -100,8 +100,9 @@ class _Move:
 
     def read(self, name: str, kind: str) -> files.AgentFile:
         path = self.dir / name
+        ui = "ui" in ((self.job.intake or {}).get("surfaces") or [])
         try:
-            return files.read(path, kind)
+            return files.read(path, kind, require_edge_cases=(kind == "spec" and ui))
         except FileNotFoundError:
             raise Refused(f"{name} doesn't exist") from None
         except MalformedFile as e:

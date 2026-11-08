@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from puxirum.config import Config
 from puxirum.forge import Comment, FakeForge, ForgeError, Issue
@@ -190,6 +191,17 @@ class WorldTest(unittest.TestCase):
         self.r.commit(wt, {"app.txt": "rewritten\n"})
         with self.assertRaises(GitError):
             g.push(self.job.worktree, self.job.branch)
+
+    def test_the_cores_git_never_runs_repo_hooks(self):
+        """A builder that planted a hook must not get code run by the core's push."""
+        wt = self.make_worktree()
+        self.r.commit(wt, {"app.txt": "v2\n"})
+        planted = Path(self.repo) / "planted"
+        hook = Path(self.repo) / ".git" / "hooks" / "pre-push"
+        hook.write_text(f"#!/bin/sh\ntouch {planted}\n")
+        hook.chmod(0o755)
+        Git(self.repo).push(self.job.worktree, self.job.branch)
+        self.assertFalse(planted.exists())
 
     def test_sync_with_base(self):
         wt = self.make_worktree()

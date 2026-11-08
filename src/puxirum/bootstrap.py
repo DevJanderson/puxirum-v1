@@ -51,6 +51,31 @@ CONFIG_TEMPLATE = """\
 # builder = "sonnet"
 # approver = "sonnet"
 
+[app]
+# The core starts the dev server for the builder (on UI changes) and the UX/UI reviewers.
+# setup = ["npm", "ci", "--prefer-offline", "--no-audit", "--no-fund"]
+# command = ["npm", "run", "dev", "--", "--port", "{port}", "--strictPort"]
+# ready_timeout_s = 60
+
+[report]
+# A reference to compare against in `puxirum report`, such as an earlier factory's run.
+# baseline_label = "previous factory"
+# baseline_usd = 8.53
+# baseline_minutes = 78
+
+[agents]
+# command = ["claude"]
+# timeout_s = 3600                          # per agent run
+# sandbox = true                            # the builder's shell runs in Claude Code's OS sandbox
+# network = ["registry.npmjs.org"]          # hosts the builder's shell may reach (default: none)
+# sandbox_writes = ["~/.npm"]               # extra paths it may write, such as a package cache
+# [agents.budget_usd]                       # cap for one run of each role
+# intake = 0.5
+# spec = 1.0
+# builder = 4.0
+# reviewer = 1.5
+# approver = 1.0
+
 # Reviewers by risk, plus extra reviewers by surface. Uncomment to replace the defaults.
 # [routing.risk]
 # low = { code = "haiku" }
@@ -195,4 +220,9 @@ def doctor(repo: Path, forge: Forge, which: Callable[[str], str | None] = shutil
             add("ok", f"{tool} found")
         else:
             add("warn", f"{tool} not found", f"needed by the {phase}")
+    if cfg is not None and cfg.sandbox:
+        missing = [tool for tool in ("bwrap", "socat") if which(tool) is None]
+        add("fail" if missing else "ok", "builder sandbox",
+            f"install {' and '.join(missing)} (pacman -S bubblewrap socat), or set [agents] sandbox = false"
+            if missing else "bwrap and socat found")
     return checks
