@@ -1,12 +1,37 @@
 <script setup lang="ts">
-import { useElementSize } from '@vueuse/core'
-import { TerminalSquare } from 'lucide-vue-next'
-import { computed, nextTick, useTemplateRef, watch } from 'vue'
+import { useElementSize, useLocalStorage } from '@vueuse/core'
+import { PanelLeftClose, PanelLeftOpen, TerminalSquare } from 'lucide-vue-next'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import PuxirumMark from '@/components/PuxirumMark.vue'
 import { useProject } from '@/composables/useProject'
 import { LENS_NAMES } from '@/lib/format'
 
 const { state, feed } = useProject()
+
+// Folded down to a rail, remembered across tabs and visits.
+const collapsed = useLocalStorage('puxirum-sidebar-collapsed', false)
+
+// Its width, dragged from its right edge (or with the arrow keys there) and remembered; a double click restores it.
+const WIDTH = { start: 380, min: 320, max: 760, step: 16 }
+const width = useLocalStorage('puxirum-sidebar-width', WIDTH.start)
+const clamp = (w: number) => Math.round(Math.min(WIDTH.max, Math.max(WIDTH.min, w, 0), window.innerWidth * 0.6))
+const dragging = ref(false)
+function startDrag(down: PointerEvent) {
+  const handle = down.currentTarget as HTMLElement
+  const from = { x: down.clientX, width: width.value }
+  handle.setPointerCapture(down.pointerId)
+  dragging.value = true
+  const move = (e: PointerEvent) => (width.value = clamp(from.width + e.clientX - from.x))
+  const stop = () => {
+    dragging.value = false
+    handle.removeEventListener('pointermove', move)
+    handle.removeEventListener('pointerup', stop)
+    handle.removeEventListener('pointercancel', stop)
+  }
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', stop)
+  handle.addEventListener('pointercancel', stop)
+}
 
 const running = computed(() =>
   (state.value?.jobs ?? []).flatMap((j) => j.running.map((a) => ({ job: j, agent: a }))),
@@ -31,12 +56,73 @@ const tone = (who: string) => {
 </script>
 
 <template>
-  <section class="flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card" aria-label="Agentes ao vivo">
-    <div class="flex h-14 flex-none items-center gap-2.5 border-b border-hairline px-5">
+  <!-- Folded: a small rail, only as tall as what it holds, close to the edge, with the way back open and a pulse
+       while agents work. -->
+  <aside
+    v-if="collapsed"
+    class="mt-3 -mr-3 ml-3 flex w-12 flex-none flex-col items-center gap-2 self-start rounded-xl border bg-card py-2"
+    aria-label="Agentes ao vivo"
+  >
+    <button
+      class="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+      title="Abrir os agentes"
+      @click="collapsed = false"
+    >
+      <PanelLeftOpen class="size-4" />
+    </button>
+    <button
+      class="relative flex size-9 items-center justify-center rounded-[10px] border border-hairline bg-canvas"
+      :title="running.length ? `${running.length} trabalhando` : 'nenhum trabalhando agora'"
+      @click="collapsed = false"
+    >
+      <PuxirumMark :size="24" />
+      <span
+        v-if="running.length"
+        class="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground ring-2 ring-card"
+        >{{ running.length }}</span
+      >
+    </button>
+    <i v-if="running.length" class="size-2 animate-pulse rounded-full bg-primary" />
+    <span
+      v-if="waiting"
+      class="rounded-full bg-approval-subtle px-1.5 text-[10.5px] leading-4 font-medium text-approval-text"
+      :title="`${waiting} aguarda${waiting === 1 ? '' : 'm'} você`"
+      >{{ waiting }}</span
+    >
+  </aside>
+
+  <aside
+    v-else
+    class="relative my-3 -mr-3 ml-3 flex flex-none flex-col overflow-hidden rounded-xl border bg-card"
+    :class="dragging && 'select-none'"
+    :style="{ width: `${clamp(width)}px` }"
+    aria-label="Agentes ao vivo"
+  >
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Largura dos agentes"
+      :aria-valuenow="clamp(width)"
+      :aria-valuemin="WIDTH.min"
+      :aria-valuemax="WIDTH.max"
+      tabindex="0"
+      title="Arraste para mudar a largura; dois cliques voltam ao padrão"
+      class="group absolute inset-y-0 right-0 z-10 w-2 cursor-col-resize touch-none outline-none"
+      @pointerdown.prevent="startDrag"
+      @dblclick="width = WIDTH.start"
+      @keydown.left.prevent="width = clamp(width - WIDTH.step)"
+      @keydown.right.prevent="width = clamp(width + WIDTH.step)"
+    >
+      <span
+        class="absolute inset-y-3 right-0.5 w-0.5 rounded-full bg-primary opacity-0 transition-opacity group-hover:opacity-60 group-focus-visible:opacity-100"
+        :class="dragging && 'opacity-100'"
+      />
+    </div>
+    <div class="flex h-14 flex-none items-center gap-2.5 border-b border-hairline pr-3 pl-5">
       <span class="flex size-8 flex-none items-center justify-center rounded-[9px] border border-hairline bg-canvas">
         <PuxirumMark :size="22" />
       </span>
-      <b class="text-sm font-semibold">Agentes</b>
+      <h1 class="text-[15px] leading-none font-semibold tracking-tight">Puxirum</h1>
       <span v-if="running.length" class="inline-flex items-center gap-1.5 text-xs text-primary">
         <i class="size-1.5 animate-blink rounded-full bg-primary" /> {{ running.length }} trabalhando
       </span>
@@ -46,6 +132,14 @@ const tone = (who: string) => {
         class="ml-auto rounded-full bg-approval-subtle px-2 text-[11px] leading-[18px] font-medium text-approval-text"
         >{{ waiting }} aguarda{{ waiting === 1 ? '' : 'm' }} você</span
       >
+      <button
+        class="flex size-8 flex-none items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        :class="!waiting && 'ml-auto'"
+        title="Recolher os agentes"
+        @click="collapsed = true"
+      >
+        <PanelLeftClose class="size-4" />
+      </button>
     </div>
 
     <div v-if="running.length" class="flex-none space-y-2 border-b border-hairline p-3">
@@ -85,5 +179,5 @@ const tone = (who: string) => {
         </p>
       </div>
     </div>
-  </section>
+  </aside>
 </template>

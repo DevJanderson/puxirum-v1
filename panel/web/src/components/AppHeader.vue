@@ -2,7 +2,7 @@
 import { Moon, Sun } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import PuxirumMark from '@/components/PuxirumMark.vue'
+import TabsNav from '@/components/TabsNav.vue'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { useProject } from '@/composables/useProject'
@@ -30,30 +30,32 @@ const branch = computed(() => state.value?.project.branch)
 </script>
 
 <template>
-  <header class="flex items-center justify-between gap-4 px-6 pt-3.5">
-    <div class="flex items-center gap-2.5">
-      <PuxirumMark />
-      <h1 class="text-[17px] leading-none font-semibold tracking-tight">Puxirum</h1>
+  <!-- One row: the project, the tabs, then the live dot (the name and mascot head the agents' side). The bottom line is
+       an inset shadow, so the active tab's underline covers it without overflowing. It sits 12px down, like the
+       agents' card, so both heads share a centre line and a bottom line. -->
+  <header class="mt-3 mr-3 ml-6 flex h-14 flex-none items-stretch gap-4 shadow-[inset_0_-1px_0_var(--hairline)]">
+    <div class="flex flex-none items-center gap-2.5">
       <Select v-model="current">
         <SelectTrigger
           size="sm"
-          class="ml-1.5 h-7 gap-1.5 border-0 bg-transparent px-2 text-[13px] text-muted-foreground shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent"
+          class="-ml-2 h-8 gap-2 border-0 bg-transparent px-2 text-[13px] text-muted-foreground shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent"
           aria-label="Projeto"
         >
-          projeto <b class="font-semibold text-foreground">{{ name }}</b>
-          <span v-if="branch" class="rounded bg-neutral-subtle px-1.5 font-mono text-xs text-neutral-text">{{ branch }}</span>
+          <b class="text-[15px] font-semibold tracking-tight text-foreground">{{ name }}</b>
+          <span v-if="branch" class="rounded bg-neutral-subtle px-1.5 font-mono text-[11px] leading-[18px] text-neutral-text">{{ branch }}</span>
         </SelectTrigger>
         <SelectContent>
           <SelectItem v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</SelectItem>
         </SelectContent>
       </Select>
     </div>
-    <div class="flex items-center gap-2">
+    <TabsNav :project="id" class="flex-1" />
+    <div class="flex flex-none items-center gap-2">
       <span class="flex items-center gap-1.5 text-xs text-muted-foreground" :title="connected ? 'recebendo atualizações' : 'reconectando'">
         <span class="size-1.5 rounded-full" :class="connected ? 'bg-success' : 'bg-faint'" />
         {{ connected ? 'ao vivo' : 'reconectando…' }}
       </span>
-      <Button variant="ghost" size="icon" class="size-7 text-muted-foreground" aria-label="Trocar tema" @click="toggle">
+      <Button variant="ghost" size="icon" class="-mr-1.5 size-7 text-muted-foreground" aria-label="Trocar tema" @click="toggle">
         <Sun class="size-4 dark:hidden" />
         <Moon class="hidden size-4 dark:block" />
       </Button>

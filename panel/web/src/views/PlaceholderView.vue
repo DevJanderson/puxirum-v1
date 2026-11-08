@@ -8,7 +8,7 @@ const tab = computed(() => route.meta.tab as Tab)
 </script>
 
 <template>
-  <main class="mx-6 mt-5 mb-6 flex flex-1 items-center justify-center rounded-xl border border-dashed bg-canvas p-10">
+  <main class="mt-5 mr-3 mb-3 ml-6 flex flex-1 items-center justify-center rounded-xl border border-dashed bg-canvas p-10">
     <div class="max-w-md text-center">
       <component :is="tab.icon" class="mx-auto size-8 text-faint" :stroke-width="1.4" />
       <p class="mt-4 text-[11px] font-semibold tracking-wider text-faint uppercase">Em breve</p>

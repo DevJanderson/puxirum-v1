@@ -53,11 +53,11 @@ const summary = computed(() => {
     aria-label="A linha"
   >
     <div class="flex h-14 flex-none items-center gap-3 border-b border-hairline bg-card pr-3.5 pl-5">
-      <div class="flex items-baseline gap-2.5">
-        <b class="text-[15px] font-semibold">A linha</b>
-        <span class="text-xs text-faint">{{ summary }}</span>
+      <div class="flex min-w-0 items-baseline gap-2.5">
+        <b class="text-[15px] font-semibold whitespace-nowrap">A linha</b>
+        <span class="truncate text-xs text-faint" :title="summary">{{ summary }}</span>
       </div>
-      <div class="ml-auto flex items-center gap-3.5 text-xs text-muted-foreground">
+      <div class="ml-auto flex flex-none items-center gap-3.5 text-xs whitespace-nowrap text-muted-foreground">
         <span class="inline-flex items-center gap-1.5"><i class="size-2 rounded-full bg-agent" />agente</span>
         <span class="inline-flex items-center gap-1.5"><i class="size-2 rounded-full bg-faint" />núcleo</span>
         <span class="inline-flex items-center gap-1.5">
