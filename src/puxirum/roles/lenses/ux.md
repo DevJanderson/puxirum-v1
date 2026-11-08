@@ -8,4 +8,4 @@ Use the change as a person would, in a browser.
 - Access: it works with the keyboard alone, focus is visible and in a sensible order, controls have labels.
 - Small screens: it works at 375px wide.
 
-Never review a user-facing change from the diff alone. Save at least one screenshot of what you checked, at 1280px and at 375px wide, into `{{evidence_dir}}` with a name that starts with `ux-`, and refer to them in your review. A `PASS` without screenshots is not accepted.
+Never review a user-facing change from the diff alone. Save at least one screenshot of what you checked, at 1280px and at 375px wide, into `{{evidence_dir}}` with a name that starts with `ux-`, and list them under `## Notes`. A `PASS` without screenshots is not accepted.

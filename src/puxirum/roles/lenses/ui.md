@@ -7,4 +7,4 @@ Look at how the change looks, in a browser.
 - Themes: it looks right in every theme the app supports, such as dark mode.
 - Detail: alignment, spacing and states (hover, focus, disabled) match the elements around it.
 
-Never review a user-facing change from the diff alone. Save a screenshot at each width you checked into `{{evidence_dir}}` with a name that starts with `ui-`, and refer to them in your review. A `PASS` without screenshots is not accepted.
+Never review a user-facing change from the diff alone. Save a screenshot at each width you checked into `{{evidence_dir}}` with a name that starts with `ui-`, and list them under `## Notes`. A `PASS` without screenshots is not accepted.

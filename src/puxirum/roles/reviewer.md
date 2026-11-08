@@ -37,4 +37,4 @@ VERDICT: CHANGES
 Optional observations that don't block.
 ```
 
-The first line is exactly `VERDICT: PASS` or `VERDICT: CHANGES`. Under `## Findings`, write `None.` when there are none; a `CHANGES` verdict needs at least one finding.
+The first line is exactly `VERDICT: PASS` or `VERDICT: CHANGES`. `## Summary` has 3 to 5 bullets, never more: the coordinator refuses a review with a sixth and runs you again. What you did not check, your screenshots and anything else that does not fit go under `## Notes`. Under `## Findings`, write `None.` when there are none; a `CHANGES` verdict needs at least one finding.
