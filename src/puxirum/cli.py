@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
-from puxirum import __version__, bootstrap, config, report
+from puxirum import __version__, bootstrap, config, panel, report
 from puxirum.claude import ClaudeRunner
 from puxirum.engine import Engine
 from puxirum.feed import Feed
@@ -151,6 +151,11 @@ def main(
     sub.add_parser("workbench", help="open the tuios workbench beside this pane without running")
     p_feed = sub.add_parser("feed", help="follow every running agent, one line per step")
     p_feed.add_argument("--once", action="store_true", help="print what is new and exit")
+    p_panel = sub.add_parser("panel", help="serve the read-only web panel")
+    p_panel.add_argument("--projects", type=Path, help="look for repositories with Puxirum under this folder")
+    p_panel.add_argument("--host", default="127.0.0.1")
+    p_panel.add_argument("--port", type=int, default=panel.DEFAULT_PORT)
+    p_panel.add_argument("--web", type=Path, help="the built pages (default: the ones shipped with Puxirum)")
     p_rep = sub.add_parser("report", help="costs and times by job, role, model and run")
     p_rep.add_argument("--json", action="store_true", help="machine-readable output")
     p_fb = sub.add_parser("feedback", help="send an escalated job back to work with your feedback")
@@ -162,6 +167,10 @@ def main(
     args = parser.parse_args(argv)
 
     try:
+        if args.command == "panel":
+            root = (args.projects or repo_root(cwd)).resolve()
+            panel.serve(root, args.host, args.port, args.web or panel.default_web(), out=out)
+            return 0
         if args.command in ("init", "doctor"):
             repo = repo_root(cwd)
             if args.command == "init":

@@ -99,14 +99,18 @@ class Feed:
     colour: bool = False
     width: Callable[[], int | None] = lambda: None  # the pane's width, to keep each step on one line
     clock: Callable[[], float] = time.time
+    replay: int = 0  # how many of the agents that already finished, the latest ones, to read again from the start
     _tails: dict[Path, _Tail] = field(default_factory=dict)
     _issues: dict[str, int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        # Agents that already finished are history; start the others from their first line.
+        # Agents that already finished are history, but for the latest `replay` of them; the others start from their
+        # first line.
+        finished = [p for p in self._streams() if _finished(p)]
+        recent = set(sorted(finished, key=_mtime)[-self.replay :]) if self.replay else set()
         for path in self._streams():
             tail = self._tail(path)
-            if _finished(path):
+            if path in finished and path not in recent:
                 tail.offset = path.stat().st_size
 
     def _streams(self) -> list[Path]:
@@ -138,15 +142,24 @@ class Feed:
         except Exception:  # noqa: BLE001
             return ()
 
-    def poll(self) -> list[str]:
+    def steps(self) -> list[tuple[Path, str, str]]:
+        """The new steps since the last call, as (stream, label, text)."""
         out = []
-        width = max([len(t.label) for t in self._tails.values()] + [18])
         for path in self._streams():
             tail = self._tail(path)
             for event in _read_new(tail):
                 for text in describe(event, tail.roots):
-                    out.append(self._line(tail.label, text, width))
+                    out.append((path, tail.label, text))
         return out
+
+    def entries(self) -> list[tuple[str, str]]:
+        """The new steps since the last call, as (label, text)."""
+        return [(label, text) for _, label, text in self.steps()]
+
+    def poll(self) -> list[str]:
+        new = self.entries()
+        width = max([len(t.label) for t in self._tails.values()] + [18])
+        return [self._line(label, text, width) for label, text in new]
 
     def _line(self, label: str, text: str, width: int) -> str:
         stamp = time.strftime("%H:%M:%S", time.localtime(self.clock()))
@@ -185,6 +198,13 @@ def _read_new(tail: _Tail) -> list[dict]:
         if isinstance(event, dict):
             events.append(event)
     return events
+
+
+def _mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
 
 
 def _finished(path: Path) -> bool:

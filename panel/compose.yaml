@@ -1,0 +1,14 @@
+# docker compose -f panel/compose.yaml up -d --build   →   http://localhost:4410
+services:
+  panel:
+    build:
+      context: ..
+      dockerfile: panel/Dockerfile
+    image: puxirum-panel
+    # Read the job files as their owner; with rootless Podman, use `userns_mode: keep-id` instead.
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - "127.0.0.1:${PUXIRUM_PANEL_PORT:-4410}:4410"
+    volumes:
+      - "${PUXIRUM_PROJECTS:-${HOME}/Projects}:/projects:ro"
+    restart: unless-stopped

@@ -377,6 +377,7 @@ Uma execução de agente só conta se ele sair com 0 **e** reescrever o arquivo 
 | `puxirum status` | Mostra os jobs, as etapas e o que espera pela pessoa |
 | `puxirum workbench` | Monta a bancada do tuios ao lado do pane atual, sem rodar a fila |
 | `puxirum feed` | Segue todos os agentes ativos, uma linha por passo (é o pane Agentes) |
+| `puxirum panel` | Serve o painel web, só leitura: Vue 3 e shadcn-vue em `panel/web`, em container com `panel/compose.yaml` |
 | `puxirum feedback N` | Envia o retorno da pessoa a um job escalado |
 | `puxirum reject N` | Rejeita um job em espera, com o motivo |
 | `puxirum report` | Custos e tempos por job, por execução e comparados com a linha de base |

@@ -79,6 +79,7 @@ The commands:
 | `puxirum reject N -m "..."` | Reject a job that waits for you or for its author |
 | `puxirum workbench` | Open the tuios workbench without running |
 | `puxirum feed` | Follow every running agent, one line per step |
+| `puxirum panel` | Serve the read-only web panel |
 | `puxirum init` | Install Puxirum in a repository; it never overwrites a file |
 | `puxirum doctor` | Check everything a run needs |
 
@@ -99,6 +100,23 @@ from:
 The dashboard shows the jobs, their stages and costs, and what waits for you; a job that starts waiting for you also
 lands in the tuios Inbox. Outside tuios, Puxirum runs the same, without the workbench.
 
+### The web panel
+
+A read-only panel for the browser, in Vue 3 and shadcn-vue, served by `puxirum panel`. Its Início tab draws the line:
+every stage, the ways back with how often jobs took them, the job you pick with its rounds and reviewers' verdicts,
+what waits for you, and its files, with the running agents' steps live beside it. It reads the job files only, so
+it runs in a container with your repositories mounted read-only:
+
+```bash
+docker compose -f panel/compose.yaml up -d --build    # http://localhost:4410, finds every repo under ~/Projects
+```
+
+Or without Docker, after building it once (`cd panel/web && npm ci && npm run build`):
+
+```bash
+puxirum panel --projects ~/Projects --web panel/web/dist
+```
+
 ## Status
 
 Version 1 is complete: one runner (Claude Code) and one workbench (tuios). In the pilot, a small Vite and TypeScript
@@ -115,6 +133,10 @@ mypy
 ```
 
 To run your working copy as the `puxirum` command: `uv tool install -e .`
+
+The panel's front end lives in `panel/web` (Vue 3, Vite, TypeScript, Tailwind v4, shadcn-vue). Run
+`puxirum panel --projects ~/Projects` for the API and `npm run dev` there; Vite proxies `/api` to it.
+`npm run build` typechecks and builds it.
 
 ## License
 

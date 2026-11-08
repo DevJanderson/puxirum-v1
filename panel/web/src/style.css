@@ -1,0 +1,222 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Dark mode by class on <html>: the person chooses it in the header (system by default). */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Colour tokens. Components use these names only, never a hex. The values follow the
+ * panel's design in Doop ("Curupira — Painel"): a quiet, paper-like ground, one blue
+ * for action and for what is running now, orange for a person's approval, red for the
+ * ways back, green for what is done.
+ */
+:root {
+  --background: #ffffff;
+  --foreground: #37352f;
+  --card: #ffffff;
+  --card-foreground: #37352f;
+  --popover: #ffffff;
+  --popover-foreground: #37352f;
+  --primary: #2383e2;
+  --primary-foreground: #ffffff;
+  --primary-soft: rgb(35 131 226 / 0.22);
+  --secondary: #f1f1ef;
+  --secondary-foreground: #37352f;
+  --muted: #f1f1ef;
+  --muted-foreground: rgb(55 53 47 / 0.65);
+  --faint: rgb(55 53 47 / 0.45);
+  --accent: rgb(55 53 47 / 0.06);
+  --accent-foreground: #37352f;
+  --destructive: #d44c47;
+  --border: rgb(55 53 47 / 0.16);
+  --hairline: rgb(55 53 47 / 0.09);
+  --input: rgb(55 53 47 / 0.16);
+  --ring: #2383e2;
+  --radius: 0.75rem;
+
+  --canvas: #f7f7f5;
+  --dot: rgb(55 53 47 / 0.16);
+  --arrow: rgb(55 53 47 / 0.32);
+  --agent: #337ea9;
+  --approval: #d9730d;
+  --approval-subtle: #fadec9;
+  --approval-border: #eeb586;
+  --approval-text: #49290e;
+  --loop: #d44c47;
+  --success: #448361;
+  --success-subtle: #dbeddb;
+  --success-text: #1c3829;
+  --info-subtle: #d3e5ef;
+  --info-text: #183347;
+  --danger-subtle: #ffe2dd;
+  --danger-text: #5d1715;
+  --warning-subtle: #fdecc8;
+  --warning-text: #402c1b;
+  --neutral-subtle: #e3e2e0;
+  --neutral-text: #32302c;
+  --shadow-card: 0 1px 2px rgb(15 15 15 / 0.05), 0 4px 14px rgb(15 15 15 / 0.05);
+
+  --chart-1: #2383e2;
+  --chart-2: #448361;
+  --chart-3: #d9730d;
+  --chart-4: #337ea9;
+  --chart-5: #d44c47;
+  --sidebar: #f7f7f5;
+  --sidebar-foreground: #37352f;
+  --sidebar-primary: #2383e2;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(55 53 47 / 0.06);
+  --sidebar-accent-foreground: #37352f;
+  --sidebar-border: rgb(55 53 47 / 0.09);
+  --sidebar-ring: #2383e2;
+}
+
+.dark {
+  --background: #191919;
+  --foreground: rgb(255 255 255 / 0.81);
+  --card: #202020;
+  --card-foreground: rgb(255 255 255 / 0.81);
+  --popover: #202020;
+  --popover-foreground: rgb(255 255 255 / 0.81);
+  --primary: #2383e2;
+  --primary-foreground: #ffffff;
+  --primary-soft: rgb(35 131 226 / 0.3);
+  --secondary: #2c2c2c;
+  --secondary-foreground: rgb(255 255 255 / 0.81);
+  --muted: #2c2c2c;
+  --muted-foreground: rgb(255 255 255 / 0.55);
+  --faint: rgb(255 255 255 / 0.38);
+  --accent: rgb(255 255 255 / 0.055);
+  --accent-foreground: rgb(255 255 255 / 0.81);
+  --destructive: #e8796f;
+  --border: rgb(255 255 255 / 0.14);
+  --hairline: rgb(255 255 255 / 0.08);
+  --input: rgb(255 255 255 / 0.14);
+  --ring: #5aa8d6;
+
+  --canvas: #191919;
+  --dot: rgb(255 255 255 / 0.09);
+  --arrow: rgb(255 255 255 / 0.3);
+  --agent: #5aa8d6;
+  --approval: #f0a35a;
+  --approval-subtle: #5c3b23;
+  --approval-border: #a8693a;
+  --approval-text: #f4c7a6;
+  --loop: #e8796f;
+  --success: #6fbf94;
+  --success-subtle: #2b593f;
+  --success-text: #c9e6d2;
+  --info-subtle: #28456c;
+  --info-text: #cfe1f5;
+  --danger-subtle: #6e3630;
+  --danger-text: #f7cfc9;
+  --warning-subtle: #564328;
+  --warning-text: #f6e2b6;
+  --neutral-subtle: #373737;
+  --neutral-text: rgb(255 255 255 / 0.81);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 14px rgb(0 0 0 / 0.25);
+
+  --sidebar: #191919;
+  --sidebar-foreground: rgb(255 255 255 / 0.81);
+  --sidebar-accent: rgb(255 255 255 / 0.055);
+  --sidebar-accent-foreground: rgb(255 255 255 / 0.81);
+  --sidebar-border: rgb(255 255 255 / 0.08);
+}
+
+@theme inline {
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-hairline: var(--hairline);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-canvas: var(--canvas);
+  --color-dot: var(--dot);
+  --color-arrow: var(--arrow);
+  --color-agent: var(--agent);
+  --color-approval: var(--approval);
+  --color-approval-subtle: var(--approval-subtle);
+  --color-approval-border: var(--approval-border);
+  --color-approval-text: var(--approval-text);
+  --color-loop: var(--loop);
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-text: var(--success-text);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-text: var(--info-text);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-danger-text: var(--danger-text);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-text: var(--warning-text);
+  --color-neutral-subtle: var(--neutral-subtle);
+  --color-neutral-text: var(--neutral-text);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --shadow-card: var(--shadow-card);
+
+  --animate-spin-slow: spin 1.6s linear infinite;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+  --animate-blink: blink 1.2s infinite;
+  --animate-pulse-ring: pulse-ring 1.8s ease-out infinite;
+
+  @keyframes shimmer {
+    from { background-position: -160px 0; }
+    to { background-position: 160px 0; }
+  }
+  @keyframes blink {
+    0%, 80%, 100% { opacity: 0.2; }
+    40% { opacity: 1; }
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 var(--primary-soft), var(--shadow-card); }
+    70% { box-shadow: 0 0 0 14px transparent, var(--shadow-card); }
+    100% { box-shadow: 0 0 0 0 transparent, var(--shadow-card); }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+}
