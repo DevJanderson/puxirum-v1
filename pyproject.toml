@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "puxirum"
+version = "0.1.0.dev0"
+description = "A deterministic software factory: GitHub issues in, merged pull requests out."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = []
+
+[project.scripts]
+puxirum = "puxirum.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
