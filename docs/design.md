@@ -24,6 +24,7 @@
 17. [Melhorias além da paridade](#17-melhorias-além-da-paridade)
 18. [Critérios de sucesso do piloto](#18-critérios-de-sucesso-do-piloto)
 19. [Fases, riscos e questões abertas](#19-fases-riscos-e-questões-abertas)
+20. [A plataforma](#20-a-plataforma)
 
 ---
 
@@ -525,3 +526,38 @@ Na Fase 4, o Puxirum roda no `todo-factory` com **issues equivalentes** às do p
 - O que acontece com um `new-window --wait` em curso se o daemon do tuios reiniciar? O executor deve tratar como falha
   retomável.
 - Painel web somente leitura, além do TML, para quem estiver fora do terminal? (Fora da v1, a menos que seja barato.)
+  **Respondida depois da v1:** o painel web existe e vai virar a plataforma; ver a seção 20.
+
+## 20. A plataforma
+
+> **Status:** visão, registrada em 2026-11-08, depois da v1. Ainda não é plano de fases.
+
+O painel web (`panel/web`, servido por `puxirum panel`) vai se tornar **a plataforma Puxirum**. A plataforma é o
+terreno onde a fábrica agêntica é montada e evolui, e nela fica tudo o que a fábrica faz e gerencia. A fábrica deixa de
+ser uma linha fixa no código com um visor ao lado: ela passa a ser construída, operada e melhorada na plataforma.
+
+| Camada | O que a pessoa faz na plataforma |
+|---|---|
+| Montar | Define a linha (etapas e ordem), os agentes (papéis, instruções, lentes), os portões e as regras (checks, limite de voltas, aprovações) |
+| Operar | Cadastra os projetos, acompanha a fila e os jobs, responde ao que espera por ela |
+| Gerenciar | Consulta o que a fábrica produz e sabe sobre cada produto (Projeto, Jornada, Arquitetura, Segurança…) |
+| Evoluir | Mede se uma mudança na fábrica melhorou custo, tempo e qualidade, e guarda o histórico das versões dela |
+
+**Princípios:**
+
+- **O núcleo continua sendo o motor.** A plataforma monta e comanda; o núcleo determinístico executa. A plataforma
+  nunca reimplementa uma regra do núcleo: cada ação dela chama o mesmo caminho que a linha de comando chama.
+- **A pessoa decide nos pontos que importam** (aceitar, aprovar o merge, responder dúvidas). A plataforma deixa essas
+  decisões rápidas, mas não decide por ela.
+- **Tudo que acontece aparece**, como já é hoje: cada agente, cada custo, cada volta.
+- **A própria fábrica é um produto da plataforma.** Assim que a plataforma puder agir, o repositório do Puxirum entra
+  como projeto, e as mudanças nela passam pela fábrica.
+
+**Questões abertas:**
+
+- Hoje as etapas (`STAGES` em `machine.py`) e os papéis (`src/puxirum/roles`) estão no código. Montar e evoluir a
+  fábrica pela plataforma exige descrevê-la como dados versionados.
+- A API do painel só lê (GET). Ações que escrevem precisam de uma camada de comandos e de proteção, mesmo em
+  `127.0.0.1`.
+- Que forma tem a plataforma: só web local, web e desktop, e com que tecnologia?
+- Como fica cada componente quando ainda não existe nenhum projeto (estados vazio, carregando e erro).
